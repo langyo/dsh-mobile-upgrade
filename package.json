@@ -1,0 +1,53 @@
+{
+  "name": "dsh-mobile-upgrade",
+  "version": "0.1.0",
+  "description": "Mobile UI fixes for the DeepSeek Harness web profile: composer attachment upload, a restart row, input-modality switches, a narrow-screen drawer and settings tabs, and a full-width model menu.",
+  "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./client/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "client",
+    "cordis.patch.yml",
+    "LICENSE"
+  ],
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "dsh-plugin",
+    "mobile",
+    "upload"
+  ],
+  "engines": {
+    "dsh": ">=0.1.2-rc.1"
+  },
+  "dependencies": {
+    "yaml": "^2.6.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/langyo/dsh-mobile-ui-fix.git"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "check": "node --check lib/index.js && node --check client/client.js"
+  }
+}

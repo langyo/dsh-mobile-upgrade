@@ -1,0 +1,9 @@
+# Multilingual consistency record (dsh docs/i18n contract, extended to eight languages): the git blob hash of each side as of the last confirmed-consistent state. All languages carry equal authority; after editing any side, bring the others along and re-record with `git hash-object`.
+README.md: a43e9145097d5955eaebdd9254928f5505a5bdd2
+README.zh.md: 474dcbfac00777f302ee971ccca5c0b5a4a1a482
+README.ja.md: db862b54e1168103e649a7f1eabf5d8887bad942
+README.ko.md: ce14be38d144d3d30b836e618ed12d12a8fba6eb
+README.es.md: 8347c25b43e074c9f4ceedab749b4f8c24b07a56
+README.fr.md: 0a1b81fb4e42d6b5a558afb6d302f050fe760087
+README.de.md: f9bcbc2412d3ad8dbe5900e8ac06d223233519c7
+README.ru.md: c12c48fb6a685d743c8955117139bb30ed2b19d6
