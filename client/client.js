@@ -20,6 +20,9 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //      (the whale is the host's own toggle, hHd-Xa_collapsed is the state).
 //   5. narrow settings: the dialog's side nav becomes horizontal top tabs.
 //   6. narrow model menu: the composer's model menu lands full-width.
+//   7. network chip: a slot chip next to the paperclip surfaces /api/
+//      requests that hang or fail; tapping it probes the service's ping
+//      route to tell a slow route from a deadlocked host.
 //
 // Optional features are toggled with localStorage keys (value "0" = off):
 //   mfx-attach   (default on) — the 📎 upload button
@@ -29,6 +32,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //   mfx-settings (default on) — the settings top-tabs layout
 //   mfx-modality (default on) — the provider-edit input-modality switches
 //   mfx-menus    (default on) — the model menu spanning the phone width
+//   mfx-net      (default on) — the stuck-request network chip
 // Without a localStorage override, the per-feature toggles of the server-side
 // "mobile-ui-fix" settings section decide (they take effect on next load).
 var namespaceFlags = null;
@@ -42,7 +46,8 @@ var NAMESPACE_FLAG_KEYS = {
 	drawer: "drawerEnabled",
 	settings: "settingsTabsEnabled",
 	modality: "modalityEnabled",
-	menus: "menusEnabled"
+	menus: "menusEnabled",
+	net: "netEnabled"
 };
 function flag(name, dflt) {
 	try {
@@ -663,6 +668,137 @@ function flag(name, dflt) {
 			window.addEventListener("resize", placeMenus);
 			setInterval(placeMenus, 1000);
 			placeMenus();
+		}
+
+		// ---------- 7. network chip: surface stuck /api/ requests ----------
+		// The host talks to /api/... through window.fetch and some routes
+		// (e.g. /api/session/list) can hang without any UI feedback, leaving
+		// "is the service dead or is this route slow" unanswerable. A thin
+		// wrapper around window.fetch tracks in-flight /api/ requests; a
+		// compact chip next to the paperclip appears only when a request
+		// crosses the stuck threshold or fails outright. Tapping it runs a
+		// liveness probe against the plugin's ping route to separate "the
+		// service is alive, this route is slow" from "the host is not
+		// answering at all".
+		if (flag("net", true)) {
+			var NET_STUCK_MS = 10000;
+			var NET_KEEP_MS = 20000;
+			var netT = function (zh, en) {
+				try { return (navigator.language || "en").toLowerCase().indexOf("zh") === 0 ? zh : en; }
+				catch (e) { return en; }
+			};
+			var netInflight = [];
+			var netRecent = [];
+
+			function netTick() {
+				if (typeof netChipTick === "function") netChipTick();
+			}
+			function netTrack(url) {
+				var path = String(url).split("?")[0];
+				var cut = path.indexOf("/api/");
+				if (cut === -1) return null;
+				var entry = { path: path.slice(cut), start: Date.now() };
+				netInflight.push(entry);
+				return entry;
+			}
+			function netSettle(entry, ok) {
+				var i = netInflight.indexOf(entry);
+				if (i === -1) return;
+				netInflight.splice(i, 1);
+				var ms = Date.now() - entry.start;
+				if (!ok || ms > NET_STUCK_MS) {
+					netRecent.push({ path: entry.path, ms: ms, ok: ok, at: Date.now() });
+					netRecent = netRecent.filter(function (r) { return Date.now() - r.at < NET_KEEP_MS; });
+				}
+			}
+			if (!window.__mfxFetchPatched) {
+				window.__mfxFetchPatched = true;
+				var mfxOrigFetch = window.fetch.bind(window);
+				window.fetch = function (input, init) {
+					var url = typeof input === "string" ? input : (input && input.url) || "";
+					var entry = netTrack(url);
+					if (!entry) return mfxOrigFetch(input, init);
+					return mfxOrigFetch(input, init).then(
+						function (res) { netSettle(entry, !!(res && res.ok)); return res; },
+						function (err) { netSettle(entry, false); throw err; }
+					);
+				};
+			}
+			function netToast(text) {
+				// toast() lives in the attach block; only delegate when enabled
+				if (typeof toast === "function") toast(text);
+			}
+			function netProbe() {
+				var t0 = Date.now();
+				var ctl = new AbortController();
+				var timer = setTimeout(function () { ctl.abort(); }, 5000);
+				netToast("⏳ " + netT("正在探测服务…", "Probing the service…"));
+				fetch("/plugins/mobile-ui-fix/ping", { cache: "no-store", signal: ctl.signal })
+					.then(function () {
+						clearTimeout(timer);
+						netToast("✓ " + netT("服务存活（ping " + (Date.now() - t0) + "ms）——卡住的是 API 路由本身", "Service alive (ping " + (Date.now() - t0) + "ms) — the API route itself is stuck"));
+					})
+					.catch(function () {
+						clearTimeout(timer);
+						netToast("✗ " + netT("服务无响应（5s 超时）——宿主可能卡死，可在 设置 → 通用 里重启服务", "No answer within 5s — the host may be deadlocked; restart it from Settings → General"));
+					});
+			}
+			// The chip is plain DOM, not a slot component: when /api/ hangs the
+			// host stops re-rendering entirely, so a React seat would never
+			// refresh exactly when it matters. Our own ticker owns the element,
+			// re-anchoring it beside the paperclip after host re-renders.
+			var netChip = null;
+			function netChipTick() {
+				var now = Date.now();
+				var stuck = netInflight.filter(function (r) { return now - r.start >= NET_STUCK_MS; });
+				var failed = netRecent.filter(function (r) { return !r.ok; });
+				var visible = stuck.length > 0 || failed.length > 0;
+				if (!visible) {
+					if (netChip) netChip.style.display = "none";
+					return;
+				}
+				if (!netChip || !netChip.isConnected) {
+					var anchor = document.querySelector("button.uV2eYG_add");
+					if (!anchor || !anchor.parentElement) return;
+					if (!netChip) {
+						netChip = document.createElement("button");
+						netChip.type = "button";
+						netChip.id = "mfx-net-chip";
+						netChip.addEventListener("click", netProbe);
+					}
+					anchor.parentElement.insertBefore(netChip, anchor.nextSibling);
+				}
+				var hot = stuck.length > 0;
+				netChip.style.display = "flex";
+				netChip.style.alignItems = "center";
+				netChip.style.height = "28px";
+				netChip.style.margin = "0 4px";
+				netChip.style.padding = "0 8px";
+				netChip.style.borderRadius = "14px";
+				netChip.style.border = "1px solid " + (hot ? "rgba(214,128,32,.55)" : "rgba(196,64,64,.55)");
+				netChip.style.background = hot ? "rgba(214,128,32,.12)" : "rgba(196,64,64,.10)";
+				netChip.style.color = "inherit";
+				netChip.style.cursor = "pointer";
+				netChip.style.fontSize = "12px";
+				netChip.style.flex = "none";
+				netChip.textContent = hot ? "⏳ " + stuck.length : "⚠";
+				netChip.title = stuck.map(function (r) { return r.path + "  " + Math.round((now - r.start) / 1000) + "s"; })
+					.concat(failed.map(function (r) { return r.path + "  " + (r.ok ? Math.round(r.ms / 1000) + "s" : netT("失败", "failed")); }))
+					.join("\n");
+				netChip.setAttribute("aria-label", netT("网络状态", "Network status"));
+			}
+			// one steady 1s tick drives the chip whether or not anything is
+			// in flight — it must run while the host is frozen to hide and
+			// re-anchor the element as requests settle
+			setInterval(netTick, 1000);
+			window.__mfxNetDebug = function () {
+				return {
+					patched: !!window.__mfxFetchPatched,
+					inflight: netInflight.map(function (r) { return { p: r.path, ms: Date.now() - r.start }; }),
+					recent: netRecent.length,
+					chip: netChip ? (netChip.isConnected ? "attached" : "detached") : "absent"
+				};
+			};
 		}
 	}
 	return { name: "dsh-mobile-upgrade", inject: inject, apply: apply };
