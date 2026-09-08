@@ -1,6 +1,6 @@
 # dsh-mobile-upgrade
 
-[English](README.md) | 中文 | [日本語](README.ja.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Français](README.fr.md) | [Deutsch](README.de.md) | [Русский](README.ru.md)
+[English](../../README.md) | 简体中文 | [日本語](../ja/README.md) | [한국어](../ko/README.md) | [Español](../es/README.md) | [Français](../fr/README.md) | [Deutsch](../de/README.md) | [Русский](../ru/README.md)
 
 面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）web profile 的手机端体验修复，以单个插件交付。所有界面都走宿主自身的槽位与状态信号——不接管布局、不放悬浮组件、不轮询聊天内容。
 

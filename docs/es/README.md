@@ -1,6 +1,6 @@
 # dsh-mobile-upgrade
 
-[English](README.md) | [简体中文](README.zh.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | Español | [Français](README.fr.md) | [Deutsch](README.de.md) | [Русский](README.ru.md)
+[English](../../README.md) | [简体中文](../zh-Hans/README.md) | [日本語](../ja/README.md) | [한국어](../ko/README.md) | Español | [Français](../fr/README.md) | [Deutsch](../de/README.md) | [Русский](../ru/README.md)
 
 Mejoras de calidad de vida para móviles en el perfil web de [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`), empaquetadas como un único plugin. Todo se renderiza a través de los slots y señales de estado del propio host — sin toma del layout, sin widgets flotantes, sin sondear el DOM del chat.
 
