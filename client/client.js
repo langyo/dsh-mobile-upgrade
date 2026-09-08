@@ -501,15 +501,20 @@ function flag(name, dflt) {
 				   subtree. The gray tint is visible on light and dark pages
 				   alike, which a white tint never is. */
 				"  [class*=\"pI_x6G_sidebarCol\"] { position: fixed; top: 10px; left: 10px; width: 56px;",
-				"    height: 56px !important; z-index: 130; overflow: hidden; border-radius: 50%;",
+				"    height: 56px !important; z-index: 130; overflow: hidden; border-radius: 50% !important;",
 				"    box-shadow: 0 2px 14px rgba(0,0,0,.18); touch-action: none;",
 				"    transition: left .28s cubic-bezier(.2,.8,.2,1), top .28s cubic-bezier(.2,.8,.2,1);",
 				"    background: rgba(128,132,140,.28) !important; }",
 				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] { height: auto !important;",
-				"    min-height: 0 !important; }",
+				"    min-height: 0 !important; padding: 0 !important; }",
+				/* the toggle fills the circle exactly: the host root carries its
+				   own 18px top padding that pushed the whale below center, and
+				   width/height 100% resolved against that padded box — anchor
+				   the toggle to the chip itself instead */
 				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] [class*=\"hHd-Xa_toggle\"]",
-				"  { width: 100% !important; height: 100% !important; display: grid !important;",
-				"    place-items: center !important; margin: 0 !important; }",
+				"  { position: absolute !important; inset: 0 !important; width: 100% !important;",
+				"    height: 100% !important; display: grid !important; place-items: center !important;",
+				"    margin: 0 !important; padding: 0 !important; }",
 				/* collapsed: hide everything except the whale toggle */
 				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] [class*=\"hHd-Xa_newSession\"],",
 				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] [class*=\"bhn1Oq_iconButton\"],",
