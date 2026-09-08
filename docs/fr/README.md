@@ -17,13 +17,12 @@ Améliorations mobiles pour le profil web de [DeepSeek Harness](https://github.c
 
 ## Captures d'écran
 
-La pastille flottante, le tiroir de sessions, la pastille réseau, les onglets de paramètres sur écran étroit et le bouton de pièces jointes du composer (annotés) :
+La pastille flottante, le tiroir de sessions, les onglets de paramètres sur écran étroit et le bouton de pièces jointes du composer (annotés) :
 
 | | |
 |---|---|
 | ![Pastille flottante](../../res/shot-floating-chip.png) | ![Tiroir de sessions](../../res/shot-drawer.png) |
-| ![Pastille réseau](../../res/shot-network-chip.png) | ![Onglets de paramètres](../../res/shot-settings-tabs.png) |
-| ![Pièces jointes](../../res/shot-composer-attach.png) | |
+| ![Onglets de paramètres](../../res/shot-settings-tabs.png) | ![Pièces jointes](../../res/shot-composer-attach.png) |
 
 ## Installation
 

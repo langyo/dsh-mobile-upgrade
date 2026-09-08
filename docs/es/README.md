@@ -17,13 +17,12 @@ Mejoras de calidad de vida para móviles en el perfil web de [DeepSeek Harness](
 
 ## Capturas de pantalla
 
-El chip flotante, el cajón de sesiones, el chip de red, las pestañas de ajustes en pantallas estrechas y el botón de adjuntos del compositor (anotados):
+El chip flotante, el cajón de sesiones, las pestañas de ajustes en pantallas estrechas y el botón de adjuntos del compositor (anotados):
 
 | | |
 |---|---|
 | ![Chip flotante](../../res/shot-floating-chip.png) | ![Cajón de sesiones](../../res/shot-drawer.png) |
-| ![Chip de red](../../res/shot-network-chip.png) | ![Pestañas de ajustes](../../res/shot-settings-tabs.png) |
-| ![Adjuntos del composer](../../res/shot-composer-attach.png) | |
+| ![Pestañas de ajustes](../../res/shot-settings-tabs.png) | ![Adjuntos](../../res/shot-composer-attach.png) |
 
 ## Instalación
 
