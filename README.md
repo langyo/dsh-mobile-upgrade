@@ -15,6 +15,16 @@ Mobile quality-of-life fixes for the [DeepSeek Harness](https://github.com/deeps
 - **Details-overlay settle** — the fullscreen tool-details overlay whose close control is inert in the current host is not rendered on narrow screens, so it cannot trap the chat.
 - **Per-feature toggles** — the plugin installs a `mobile-ui-fix` section in Settings → Plugins with a switch per feature.
 
+## Screenshots
+
+The floating chip, the session drawer, the stuck-request network chip, the narrow-screen settings tabs and the composer attach button (annotated):
+
+|  | |
+|---|---|
+| ![悬浮球](res/shot-floating-chip.png) | ![侧栏抽屉](res/shot-drawer.png) |
+| ![网络状态芯片](res/shot-network-chip.png) | ![设置标签](res/shot-settings-tabs.png) |
+| ![附件上传](res/shot-composer-attach.png) | |
+
 ## Install
 
 ```sh

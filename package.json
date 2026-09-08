@@ -16,7 +16,8 @@
     "client",
     "cordis.patch.yml",
     "LICENSE",
-    "docs"
+    "docs",
+    "res"
   ],
   "keywords": [
     "deepseek",

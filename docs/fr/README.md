@@ -15,6 +15,16 @@ Améliorations mobiles pour le profil web de [DeepSeek Harness](https://github.c
 - **Contournement du panneau de détails** — le panneau d'outils plein écran dont le bouton de fermeture est inerte dans l'hôte actuel n'est pas rendu sur les écrans étroits, il ne peut donc pas bloquer la conversation.
 - **Commutateurs par fonction** — le plugin installe une section `mobile-ui-fix` dans Paramètres → Plugins avec un interrupteur par fonction.
 
+## Captures d'écran
+
+La pastille flottante, le tiroir de sessions, la pastille réseau, les onglets de paramètres sur écran étroit et le bouton de pièces jointes du composer (annotés) :
+
+| | |
+|---|---|
+| ![Pastille flottante](../../res/shot-floating-chip.png) | ![Tiroir de sessions](../../res/shot-drawer.png) |
+| ![Pastille réseau](../../res/shot-network-chip.png) | ![Onglets de paramètres](../../res/shot-settings-tabs.png) |
+| ![Pièces jointes](../../res/shot-composer-attach.png) | |
+
 ## Installation
 
 ```sh
