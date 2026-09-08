@@ -1,6 +1,6 @@
 # dsh-mobile-upgrade
 
-[English](../../README.md) | [简体中文](../zh-Hans/README.md) | [日本語](../ja/README.md) | 한국어 | [Español](../es/README.md) | [Français](../fr/README.md) | [Deutsch](../de/README.md) | [Русский](../ru/README.md)
+[English](../../README.md) | [简体中文](../zh-Hans/README.md) | [繁體中文](../zh-Hant/README.md) | [日本語](../ja/README.md) | 한국어 | [Español](../es/README.md) | [Français](../fr/README.md) | [Deutsch](../de/README.md) | [Русский](../ru/README.md)
 
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)(`dsh`) 웹 프로파일을 위한 모바일 UI 개선 플러그인입니다. 모든 렌더링은 호스트 자체의 슬롯과 상태 시그널을 통해 이루어집니다 — 레이아웃 takeover도, 떠 있는 위젯도, 채팅 내용의 DOM 폴링도 없습니다.
 
