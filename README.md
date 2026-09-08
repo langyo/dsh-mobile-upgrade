@@ -17,13 +17,12 @@ Mobile quality-of-life fixes for the [DeepSeek Harness](https://github.com/deeps
 
 ## Screenshots
 
-The floating chip, the session drawer, the stuck-request network chip, the narrow-screen settings tabs and the composer attach button (annotated):
+The floating chip, the session drawer, the narrow-screen settings tabs and the composer attach button (annotated):
 
-|  | |
+| | |
 |---|---|
-| ![悬浮球](res/shot-floating-chip.png) | ![侧栏抽屉](res/shot-drawer.png) |
-| ![网络状态芯片](res/shot-network-chip.png) | ![设置标签](res/shot-settings-tabs.png) |
-| ![附件上传](res/shot-composer-attach.png) | |
+| ![Floating chip](res/shot-floating-chip.png) | ![Session drawer](res/shot-drawer.png) |
+| ![Settings tabs](res/shot-settings-tabs.png) | ![Composer attach](res/shot-composer-attach.png) |
 
 ## Install
 

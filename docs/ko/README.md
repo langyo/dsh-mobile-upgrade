@@ -17,13 +17,12 @@
 
 ## 스크린샷
 
-플로팅 칩, 세션 드로어, 네트워크 칩, 좁은 화면 설정 탭, 컴포저 첨부 버튼(주석 포함):
+플로팅 칩, 세션 드로어, 좁은 화면 설정 탭, 컴포저 첨부 버튼(주석 포함):
 
 | | |
 |---|---|
 | ![플로팅 칩](../../res/shot-floating-chip.png) | ![세션 드로어](../../res/shot-drawer.png) |
-| ![네트워크 칩](../../res/shot-network-chip.png) | ![설정 탭](../../res/shot-settings-tabs.png) |
-| ![첨부 업로드](../../res/shot-composer-attach.png) | |
+| ![설정 탭](../../res/shot-settings-tabs.png) | ![첨부 버튼](../../res/shot-composer-attach.png) |
 
 ## 설치
 

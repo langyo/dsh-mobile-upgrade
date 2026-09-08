@@ -17,13 +17,12 @@
 
 ## 截圖
 
-懸浮球、側欄抽屉、網路狀態晶片、窄螢幕設定標籤與輸入框附件按鈕（含標註）：
+懸浮球、側欄抽屉、窄螢幕設定標籤與輸入框附件按鈕（含標註）：
 
 | | |
 |---|---|
 | ![懸浮球](../../res/shot-floating-chip.png) | ![側欄抽屉](../../res/shot-drawer.png) |
-| ![網路狀態晶片](../../res/shot-network-chip.png) | ![設定標籤](../../res/shot-settings-tabs.png) |
-| ![附件上傳](../../res/shot-composer-attach.png) | |
+| ![設定標籤](../../res/shot-settings-tabs.png) | ![附件上傳](../../res/shot-composer-attach.png) |
 
 ## 安裝
 

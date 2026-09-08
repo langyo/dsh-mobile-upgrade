@@ -17,13 +17,12 @@
 
 ## 截图
 
-悬浮球、侧栏抽屉、网络状态芯片、窄屏设置标签与输入框附件按钮（含标注）：
+悬浮球、侧栏抽屉、窄屏设置标签与输入框附件按钮（含标注）：
 
-|  | |
+| | |
 |---|---|
 | ![悬浮球](../../res/shot-floating-chip.png) | ![侧栏抽屉](../../res/shot-drawer.png) |
-| ![网络状态芯片](../../res/shot-network-chip.png) | ![设置标签](../../res/shot-settings-tabs.png) |
-| ![附件上传](../../res/shot-composer-attach.png) | |
+| ![设置标签](../../res/shot-settings-tabs.png) | ![附件上传](../../res/shot-composer-attach.png) |
 
 ## 安装
 

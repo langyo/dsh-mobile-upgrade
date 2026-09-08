@@ -17,13 +17,12 @@ Mobilfreundliche Verbesserungen für das Web-Profil von [DeepSeek Harness](https
 
 ## Screenshots
 
-Schwebender Chip, Session-Drawer, Netzwerk-Chip, Einstellungs-Tabs auf schmalen Bildschirmen und der Anhang-Button im Composer (mit Beschriftung):
+Schwebender Chip, Session-Drawer, Einstellungs-Tabs auf schmalen Bildschirmen und der Anhang-Button im Composer (mit Beschriftung):
 
 | | |
 |---|---|
 | ![Schwebender Chip](../../res/shot-floating-chip.png) | ![Session-Drawer](../../res/shot-drawer.png) |
-| ![Netzwerk-Chip](../../res/shot-network-chip.png) | ![Einstellungs-Tabs](../../res/shot-settings-tabs.png) |
-| ![Anhang-Upload](../../res/shot-composer-attach.png) | |
+| ![Einstellungs-Tabs](../../res/shot-settings-tabs.png) | ![Anhang-Button](../../res/shot-composer-attach.png) |
 
 ## Installation
 

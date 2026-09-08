@@ -17,13 +17,12 @@
 
 ## スクリーンショット
 
-フローティングチップ、セッションドロワー、ネットワークチップ、狭い画面の設定タブ、コンポーザーの添付ボタン（注釈付き）：
+フローティングチップ、セッションドロワー、狭い画面の設定タブ、コンポーザーの添付ボタン（注釈付き）：
 
 | | |
 |---|---|
 | ![フローティングチップ](../../res/shot-floating-chip.png) | ![セッションドロワー](../../res/shot-drawer.png) |
-| ![ネットワークチップ](../../res/shot-network-chip.png) | ![設定タブ](../../res/shot-settings-tabs.png) |
-| ![添付アップロード](../../res/shot-composer-attach.png) | |
+| ![設定タブ](../../res/shot-settings-tabs.png) | ![添付ボタン](../../res/shot-composer-attach.png) |
 
 ## インストール
 
