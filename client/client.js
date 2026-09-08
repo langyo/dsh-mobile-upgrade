@@ -501,10 +501,11 @@ function flag(name, dflt) {
 				   subtree. The gray tint is visible on light and dark pages
 				   alike, which a white tint never is. */
 				"  [class*=\"pI_x6G_sidebarCol\"] { position: fixed; top: 10px; left: 10px; width: 56px;",
-				"    height: 56px !important; z-index: 130; overflow: hidden; border-radius: 50% !important;",
+				"    height: 56px !important; z-index: 130; overflow: hidden;",
 				"    box-shadow: 0 2px 14px rgba(0,0,0,.18); touch-action: none;",
 				"    transition: left .28s cubic-bezier(.2,.8,.2,1), top .28s cubic-bezier(.2,.8,.2,1);",
 				"    background: rgba(128,132,140,.28) !important; }",
+				"  html:not(.mfx-drawer-open) [class*=\"pI_x6G_sidebarCol\"] { border-radius: 50% !important; }",
 				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] { height: auto !important;",
 				"    min-height: 0 !important; padding: 0 !important; }",
 				/* the toggle fills the circle exactly: the host root carries its
@@ -526,7 +527,7 @@ function flag(name, dflt) {
 				   left/right/top the drag position stores */
 				"  html.mfx-drawer-open [class*=\"pI_x6G_sidebarCol\"] { width: min(280px, 84vw); bottom: 0;",
 				"    height: auto !important; top: 0 !important; left: 0 !important; right: auto !important;",
-				"    border-radius: 0; box-shadow: 0 0 44px rgba(0,0,0,.4);",
+				"    border-radius: 0 !important; box-shadow: 0 0 44px rgba(0,0,0,.4);",
 				"    background: none !important; -webkit-backdrop-filter: none; backdrop-filter: none; }",
 				"  html.mfx-drawer-open.mfx-chip-right [class*=\"pI_x6G_sidebarCol\"] { left: auto !important; right: 0 !important; }",
 				"  html.mfx-drawer-open #mfx-scrim { display: block; }",

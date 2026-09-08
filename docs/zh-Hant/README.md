@@ -15,6 +15,15 @@
 - **詳細面板防呆** — 目前宿主的全螢幕工具詳細面板關閉控件失效，窄螢幕上不再渲染它，聊天不會被擋住。
 - **逐功能開關** — 外掛在 設定 → 外掛 裡安裝 `mobile-ui-fix` 設定節，每個功能一枚開關。
 
+## 截圖
+
+懸浮球、側欄抽屉、網路狀態晶片、窄螢幕設定標籤與輸入框附件按鈕（含標註）：
+
+| | |
+| ![懸浮球](../../res/shot-floating-chip.png) | ![側欄抽屉](../../res/shot-drawer.png) |
+| ![網路狀態晶片](../../res/shot-network-chip.png) | ![設定標籤](../../res/shot-settings-tabs.png) |
+| ![附件上傳](../../res/shot-composer-attach.png) | |
+
 ## 安裝
 
 ```sh

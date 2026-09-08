@@ -15,6 +15,15 @@ Mobilfreundliche Verbesserungen für das Web-Profil von [DeepSeek Harness](https
 - **Ablösung des Detail-Overlays** — das Vollbild-Overlay der Werkzeugdetails, dessen Schließen-Steuerung im aktuellen Host wirkungslos ist, wird auf schmalen Bildschirmen gar nicht gerendert und kann den Chat daher nicht blockieren.
 - **Schalter pro Funktion** — das Plugin installiert einen Abschnitt `mobile-ui-fix` unter Einstellungen → Plugins mit einem Schalter pro Funktion.
 
+## Screenshots
+
+Schwebender Chip, Session-Drawer, Netzwerk-Chip, Einstellungs-Tabs auf schmalen Bildschirmen und der Anhang-Button im Composer (mit Beschriftung):
+
+| | |
+| ![Schwebender Chip](../../res/shot-floating-chip.png) | ![Session-Drawer](../../res/shot-drawer.png) |
+| ![Netzwerk-Chip](../../res/shot-network-chip.png) | ![Einstellungs-Tabs](../../res/shot-settings-tabs.png) |
+| ![Anhang-Upload](../../res/shot-composer-attach.png) | |
+
 ## Installation
 
 ```sh

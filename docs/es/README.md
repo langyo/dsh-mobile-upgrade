@@ -15,6 +15,15 @@ Mejoras de calidad de vida para móviles en el perfil web de [DeepSeek Harness](
 - **Alternativa al panel de detalles** — el panel de herramientas a pantalla completa cuyo control de cierre no responde en el host actual no se renderiza en pantallas estrechas, de modo que no puede bloquear el chat.
 - **Interruptores por función** — el plugin instala una sección `mobile-ui-fix` en Ajustes → Plugins con un interruptor por función.
 
+## Capturas de pantalla
+
+El chip flotante, el cajón de sesiones, el chip de red, las pestañas de ajustes en pantallas estrechas y el botón de adjuntos del compositor (anotados):
+
+| | |
+| ![Chip flotante](../../res/shot-floating-chip.png) | ![Cajón de sesiones](../../res/shot-drawer.png) |
+| ![Chip de red](../../res/shot-network-chip.png) | ![Pestañas de ajustes](../../res/shot-settings-tabs.png) |
+| ![Adjuntos del composer](../../res/shot-composer-attach.png) | |
+
 ## Instalación
 
 ```sh
