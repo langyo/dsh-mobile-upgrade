@@ -1,6 +1,6 @@
 # dsh-mobile-upgrade
 
-[English](README.md) | [简体中文](README.zh.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Français](README.fr.md) | [Deutsch](README.de.md) | Русский
+[English](../../README.md) | [简体中文](../zh-Hans/README.md) | [日本語](../ja/README.md) | [한국어](../ko/README.md) | [Español](../es/README.md) | [Français](../fr/README.md) | [Deutsch](../de/README.md) | Русский
 
 Удобства для мобильных устройств в веб-профиле [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`), оформленные как один плагин. Всё отрисовывается через собственные слоты и сигналы состояния хоста — без захвата разметки, без плавающих виджетов, без опроса DOM чата.
 
