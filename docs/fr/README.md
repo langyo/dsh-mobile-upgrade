@@ -1,6 +1,6 @@
 # dsh-mobile-upgrade
 
-[English](../../README.md) | [简体中文](../zh-Hans/README.md) | [日本語](../ja/README.md) | [한국어](../ko/README.md) | [Español](../es/README.md) | Français | [Deutsch](../de/README.md) | [Русский](../ru/README.md)
+[English](../../README.md) | [简体中文](../zh-Hans/README.md) | [繁體中文](../zh-Hant/README.md) | [日本語](../ja/README.md) | [한국어](../ko/README.md) | [Español](../es/README.md) | Français | [Deutsch](../de/README.md) | [Русский](../ru/README.md)
 
 Améliorations mobiles pour le profil web de [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`), livrées sous forme d'un plugin unique. Tout est rendu via les slots et signaux d'état de l'hôte lui-même — ni takeover de la mise en page, ni widgets flottants, ni interrogation du DOM de la conversation.
 

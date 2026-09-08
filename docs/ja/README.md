@@ -1,6 +1,6 @@
 # dsh-mobile-upgrade
 
-[English](../../README.md) | [简体中文](../zh-Hans/README.md) | 日本語 | [한국어](../ko/README.md) | [Español](../es/README.md) | [Français](../fr/README.md) | [Deutsch](../de/README.md) | [Русский](../ru/README.md)
+[English](../../README.md) | [简体中文](../zh-Hans/README.md) | [繁體中文](../zh-Hant/README.md) | 日本語 | [한국어](../ko/README.md) | [Español](../es/README.md) | [Français](../fr/README.md) | [Deutsch](../de/README.md) | [Русский](../ru/README.md)
 
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）web プロファイルのためのモバイル UI 改善プラグイン。すべての描画はホスト自身のスロットと状態シグナルを通じて行われます — レイアウトの乗っ取りも、浮遊ウィジェットも、チャット内容の DOM ポーリングもありません。
 
