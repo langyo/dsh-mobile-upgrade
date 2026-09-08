@@ -501,7 +501,12 @@ function flag(name, dflt) {
 				"  [class*=\"pI_x6G_sidebarCol\"] { position: fixed; top: 0; left: 0; width: 56px;",
 				"    height: 60px !important; z-index: 130; overflow: hidden; border-radius: 0 0 14px 0;",
 				"    box-shadow: 0 1px 10px rgba(0,0,0,.14); transition: width .22s ease;",
-				"    background: color-mix(in srgb, canvas 70%, transparent) !important; }",
+				/* translucent collapsed chip so the content it overlays stays
+				   readable; the plain rgba line covers engines without
+				   color-mix (they otherwise fall back to the host's opaque
+				   sidebar background), the color-mix line re-themes it */
+				"    background: rgba(252,252,252,.55) !important;",
+				"    background: color-mix(in srgb, canvas 55%, transparent) !important; }",
 				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] { height: auto !important;",
 				"    min-height: 0 !important; }",
 				/* collapsed: hide everything except the whale toggle */
