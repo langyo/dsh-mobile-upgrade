@@ -494,40 +494,133 @@ function flag(name, dflt) {
 				"  [class*=\"pI_x6G_frame\"] > [class*=\"pI_x6G_sidebarCol\"] { grid-column: 1; }",
 				"  [class*=\"pI_x6G_frame\"] > [class*=\"pI_x6G_centerCol\"] { grid-column: 2; }",
 				"  [class*=\"pI_x6G_frame\"] > [class*=\"pI_x6G_detailsCol\"] { grid-column: 3; }",
-				/* the rail floats: a small translucent whale chip when collapsed,
-				   the full drawer when open. No filter/blur here — a filter would
-				   turn the chip into the containing block for the fixed-position
-				   settings dialog that portals inside the sidebar subtree. */
-				"  [class*=\"pI_x6G_sidebarCol\"] { position: fixed; top: 0; left: 0; width: 56px;",
-				"    height: 60px !important; z-index: 130; overflow: hidden; border-radius: 0 0 14px 0;",
-				"    box-shadow: 0 1px 10px rgba(0,0,0,.14); transition: width .22s ease;",
-				/* translucent collapsed chip so the content it overlays stays
-				   readable; the plain rgba line covers engines without
-				   color-mix (they otherwise fall back to the host's opaque
-				   sidebar background), the color-mix line re-themes it */
-				"    background: rgba(252,252,252,.55) !important;",
-				"    background: color-mix(in srgb, canvas 55%, transparent) !important; }",
+				/* the rail floats: an AssistiveTouch-style translucent circle when
+				   collapsed, the full drawer when open. No filter/blur here — a
+				   filter would turn the chip into the containing block for the
+				   fixed-position settings dialog that portals inside the sidebar
+				   subtree. The gray tint is visible on light and dark pages
+				   alike, which a white tint never is. */
+				"  [class*=\"pI_x6G_sidebarCol\"] { position: fixed; top: 10px; left: 10px; width: 56px;",
+				"    height: 56px !important; z-index: 130; overflow: hidden; border-radius: 50%;",
+				"    box-shadow: 0 2px 14px rgba(0,0,0,.18); touch-action: none;",
+				"    transition: left .28s cubic-bezier(.2,.8,.2,1), top .28s cubic-bezier(.2,.8,.2,1);",
+				"    background: rgba(128,132,140,.28) !important; }",
 				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] { height: auto !important;",
 				"    min-height: 0 !important; }",
+				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] [class*=\"hHd-Xa_toggle\"]",
+				"  { width: 100% !important; height: 100% !important; display: grid !important;",
+				"    place-items: center !important; margin: 0 !important; }",
 				/* collapsed: hide everything except the whale toggle */
 				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] [class*=\"hHd-Xa_newSession\"],",
 				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] [class*=\"bhn1Oq_iconButton\"],",
 				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] [class*=\"bhn1Oq_searchButton\"],",
 				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] [data-slot=\"sidebar.footer.action\"],",
 				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] [class*=\"VOzbGW_railRow\"] { display: none !important; }",
-				/* expanded: the full drawer */
+				/* expanded: the full drawer, always on the side the chip is
+				   attached to; !important also neutralizes the inline
+				   left/right/top the drag position stores */
 				"  html.mfx-drawer-open [class*=\"pI_x6G_sidebarCol\"] { width: min(280px, 84vw); bottom: 0;",
-				"    height: auto !important; border-radius: 0; box-shadow: 0 0 44px rgba(0,0,0,.4);",
+				"    height: auto !important; top: 0 !important; left: 0 !important; right: auto !important;",
+				"    border-radius: 0; box-shadow: 0 0 44px rgba(0,0,0,.4);",
 				"    background: none !important; -webkit-backdrop-filter: none; backdrop-filter: none; }",
-				"  html.mfx-drawer-open #mfx-scrim { display: block; }",
+				"  html.mfx-drawer-open.mfx-chip-right [class*=\"pI_x6G_sidebarCol\"] { left: auto !important; right: 0 !important; }",
 				"  html.mfx-drawer-open #mfx-scrim { display: block; }",
 				"}"
 			].join("\n");
 			document.head.appendChild(dstyle);
 
 			var drawerOpen = null;
+			// AssistiveTouch-style chip position: persisted attachment side and
+			// vertical offset; the drawer opens on the attached side
+			var chipSide = "left";
+			var chipTop = 10;
+			try {
+				if (window.localStorage.getItem("mfx-chip-side") === "right") chipSide = "right";
+				var savedTop = parseInt(window.localStorage.getItem("mfx-chip-top"), 10);
+				if (!isNaN(savedTop)) chipTop = savedTop;
+			} catch (e) {}
+			function clampChipTop(t) {
+				return Math.max(10, Math.min(window.innerHeight - 66, t));
+			}
+			function applyChipPos() {
+				var chip = document.querySelector('[class*="pI_x6G_sidebarCol"]');
+				if (window.innerWidth >= 1024) {
+					if (chip) { chip.style.left = ""; chip.style.right = ""; chip.style.top = ""; }
+					document.documentElement.classList.remove("mfx-chip-right");
+					return;
+				}
+				chipTop = clampChipTop(chipTop);
+				document.documentElement.classList.toggle("mfx-chip-right", chipSide === "right");
+				if (!chip) return;
+				if (chipSide === "right") { chip.style.left = "auto"; chip.style.right = "10px"; }
+				else { chip.style.right = "auto"; chip.style.left = "10px"; }
+				chip.style.top = chipTop + "px";
+			}
+			var chipDrag = { active: false, moved: false, x: 0, y: 0, l: 0, t: 0, w: 56, curL: 10, curT: 10 };
+			document.addEventListener("pointerdown", function (ev) {
+				if (window.innerWidth >= 1024) return;
+				if (document.documentElement.classList.contains("mfx-drawer-open")) return;
+				var chip = ev.target && ev.target.closest ? ev.target.closest('[class*="pI_x6G_sidebarCol"]') : null;
+				if (!chip) return;
+				chipDrag.active = true;
+				chipDrag.moved = false;
+				chipDrag.x = ev.clientX;
+				chipDrag.y = ev.clientY;
+				var r = chip.getBoundingClientRect();
+				chipDrag.l = r.left;
+				chipDrag.t = r.top;
+				chipDrag.w = r.width;
+				chipDrag.curL = r.left;
+				chipDrag.curT = r.top;
+				chip.style.transition = "none";
+			}, true);
+			document.addEventListener("pointermove", function (ev) {
+				if (!chipDrag.active) return;
+				var dx = ev.clientX - chipDrag.x;
+				var dy = ev.clientY - chipDrag.y;
+				var chip = document.querySelector('[class*="pI_x6G_sidebarCol"]');
+				if (!chip) return;
+				if (!chipDrag.moved && Math.abs(dx) + Math.abs(dy) > 8) {
+					// capture only once a real drag starts: capturing on
+					// pointerdown would retarget the later click to the chip
+					// and the host's toggle would never see the tap
+					chipDrag.moved = true;
+					try { chip.setPointerCapture(ev.pointerId); } catch (e) {}
+				}
+				if (!chipDrag.moved) return;
+				chipDrag.curL = Math.max(8, Math.min(window.innerWidth - chipDrag.w - 8, chipDrag.l + dx));
+				chipDrag.curT = clampChipTop(chipDrag.t + dy);
+				chip.style.right = "auto";
+				chip.style.left = chipDrag.curL + "px";
+				chip.style.top = chipDrag.curT + "px";
+			}, true);
+			document.addEventListener("pointerup", function (ev) {
+				if (!chipDrag.active) return;
+				chipDrag.active = false;
+				var chip = document.querySelector('[class*="pI_x6G_sidebarCol"]');
+				if (chip) chip.style.transition = "";
+				if (!chipDrag.moved) return;
+				chipSide = chipDrag.curL + chipDrag.w / 2 < window.innerWidth / 2 ? "left" : "right";
+				chipTop = chipDrag.curT;
+				try {
+					window.localStorage.setItem("mfx-chip-side", chipSide);
+					window.localStorage.setItem("mfx-chip-top", String(chipTop));
+				} catch (e) {}
+				if (chip) void chip.offsetWidth; // flush so the edge snap animates
+				applyChipPos();
+			}, true);
+			document.addEventListener("click", function (ev) {
+				if (!chipDrag.moved) return;
+				if (ev.target && ev.target.closest && ev.target.closest('[class*="pI_x6G_sidebarCol"]')) {
+					// a drag must not flip the drawer on release
+					ev.stopPropagation();
+					ev.preventDefault();
+					chipDrag.moved = false;
+				}
+			}, true);
 			var syncDrawer = function () {
 				try {
+					applyChipPos();
 					if (window.innerWidth >= 1024) {
 						// desktop: the sidebar is a regular grid column, never a drawer
 						if (drawerOpen !== false) {
