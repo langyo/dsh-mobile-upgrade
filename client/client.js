@@ -23,6 +23,15 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //   7. network chip: a slot chip next to the paperclip surfaces /api/
 //      requests that hang or fail; tapping it probes the service's ping
 //      route to tell a slow route from a deadlocked host.
+//   8. storm throttle: many sessions streaming at once (or the replay
+//      burst right after a reconnect) mutates the document per token, so
+//      the document-wide observers run at a capped leading+trailing rate,
+//      the settings poller backs off while the host is unreachable, and a
+//      rail remount keeps the drawer state for a grace period instead of
+//      flapping the drawer — no per-mutation layout work, no frozen input,
+//      no white-flashing sidebar. Drawer close taps (scrim, picking a
+//      session) retry through a remount instead of landing on a stale
+//      toggle and stranding the drawer open.
 //
 // Optional features are toggled with localStorage keys (value "0" = off):
 //   mfx-attach   (default on) — the 📎 upload button
@@ -61,30 +70,79 @@ function flag(name, dflt) {
 	return dflt;
 }
 	function apply(ctx, config) {
+		// The settings mirror is polled so the namespace switches stay in
+		// sync with per-device localStorage overrides. During a connection
+		// disturbance this is exactly the traffic that must not pile up:
+		// one describe in flight at most, and an escalating backoff while
+		// the host rejects, instead of a fresh attempt every 4s into a
+		// reconnecting transport.
+		var nsBusy = false;
+		var nsFails = 0;
 		loadNamespaceFlags = function () {
+			if (nsBusy) return;
+			nsBusy = true;
+			var describe;
 			try {
-				if (!ctx.remote || !ctx.remote.settings || !ctx.remote.settings.describe) return Promise.resolve();
-				return Promise.resolve(ctx.remote.settings.describe()).then(function (res) {
-					var view = res && res.value !== undefined ? res.value : res;
-					var namespaces = view && view.namespaces ? view.namespaces : [];
-					for (var i = 0; i < namespaces.length; i++) {
-						var entry = namespaces[i];
-						if ((entry.ns || entry.name || entry.id) !== "mobile-ui-fix") continue;
-						if (entry.revision !== undefined) namespaceRevision = entry.revision;
-						var value = entry.value !== undefined ? entry.value : entry;
-						if (value && typeof value === "object") {
-							namespaceFlags = value;
-							sectionListeners.splice(0).forEach(function (fn) {
-								try { fn(); } catch (e) {}
-							});
-						}
-						break;
+				if (!ctx.remote || !ctx.remote.settings || !ctx.remote.settings.describe) {
+					nsBusy = false;
+					return;
+				}
+				describe = Promise.resolve(ctx.remote.settings.describe());
+			} catch (e) {
+				nsBusy = false;
+				return;
+			}
+			describe.then(function (res) {
+				nsBusy = false;
+				nsFails = 0;
+				var view = res && res.value !== undefined ? res.value : res;
+				var namespaces = view && view.namespaces ? view.namespaces : [];
+				for (var i = 0; i < namespaces.length; i++) {
+					var entry = namespaces[i];
+					if ((entry.ns || entry.name || entry.id) !== "mobile-ui-fix") continue;
+					if (entry.revision !== undefined) namespaceRevision = entry.revision;
+					var value = entry.value !== undefined ? entry.value : entry;
+					if (value && typeof value === "object") {
+						namespaceFlags = value;
+						sectionListeners.splice(0).forEach(function (fn) {
+							try { fn(); } catch (e) {}
+						});
 					}
-				}).catch(function () {});
-			} catch (e) { return Promise.resolve(); }
+					break;
+				}
+			}).catch(function () {
+				nsBusy = false;
+				nsFails++;
+			});
 		};
-		loadNamespaceFlags();
-		setInterval(loadNamespaceFlags, 4000);
+		var nsPoll = function () {
+			loadNamespaceFlags();
+			setTimeout(nsPoll, nsFails === 0 ? 4000 : Math.min(4000 * Math.pow(2, nsFails), 60000));
+		};
+		nsPoll();
+		// Leading+trailing throttle shared by the document-wide observers
+		// below: the first call in a quiet period runs at once so taps stay
+		// snappy, and a burst — a streaming token flood, a reconnect resync —
+		// collapses into a single trailing run instead of one full pass per
+		// DOM mutation.
+		function mfxThrottle(fn, ms) {
+			var last = -Infinity;
+			var timer = null;
+			return function () {
+				var now = Date.now();
+				if (now - last >= ms) {
+					last = now;
+					fn();
+					return;
+				}
+				if (timer) return;
+				timer = setTimeout(function () {
+					timer = null;
+					last = Date.now();
+					fn();
+				}, ms - (now - last));
+			};
+		}
 		// ---------- 1. details-overlay suppression on narrow screens ----------
 		// On narrow viewports the tool-details panel becomes a fullscreen
 		// overlay with a close button that does nothing (tried: programmatic
@@ -474,10 +532,38 @@ function flag(name, dflt) {
 			var scrim = document.createElement("div");
 			scrim.id = "mfx-scrim";
 			scrim.addEventListener("click", function () {
-				var t = document.querySelector('[class*="hHd-Xa_toggle"]');
-				if (t) t.click();
+				closeDrawerRetrying();
 			});
 			document.body.appendChild(scrim);
+
+			// During a storm the session switch re-renders the sidebar and a
+			// one-shot toggle click can land on a toggle that is being
+			// remounted — stale or absent — and silently do nothing, leaving
+			// the drawer stuck open over the content with nothing left to
+			// click. Retry through the remount. The rail's own collapsed
+			// class is the truth this loop exits on (or the attempt cap,
+			// which degrades to the old one-shot's terminal state only after
+			// 3.6s of tries): the mirror class on <html> is unreliable here,
+			// because the hysteresis expiry flips it off mid-gap and the
+			// remounting rail pops the drawer right back open — bailing on
+			// the mirror is exactly how the one-shot close stranded the
+			// drawer before. The growing delays ride out a busy main thread;
+			// a landed click is seen as collapsed on the next recheck, so
+			// the loop stops and cannot toggle forever.
+			function closeDrawerRetrying() {
+				var delays = [150, 250, 400, 600, 900, 1300];
+				var attempt = 0;
+				var tryClose = function () {
+					try {
+						var rail = document.querySelector('[class*="hHd-Xa_root"]');
+						if (rail && String(rail.className).indexOf("hHd-Xa_collapsed") !== -1) return;
+						if (attempt < delays.length) setTimeout(tryClose, delays[attempt++]);
+						var t = rail ? document.querySelector('[class*="hHd-Xa_toggle"]') : null;
+						if (t) t.click();
+					} catch (e) {}
+				};
+				tryClose();
+			}
 
 			var dstyle = document.createElement("style");
 			dstyle.id = "mfx-drawer-style";
@@ -624,6 +710,15 @@ function flag(name, dflt) {
 					chipDrag.moved = false;
 				}
 			}, true);
+			// A reconnect resync unmounts and remounts the rail root for a few
+			// frames at a time. Without a grace period every such gap flips
+			// the drawer shut and the returning rail flips it straight back
+			// open — per-mutation, that loop is the sidebar twitching itself
+			// into unclickability. Hold the previous drawer state while the
+			// rail is briefly missing; a real close (the rail collapsing)
+			// still applies at once because the rail stays mounted.
+			var railLastSeen = 0;
+			var RAIL_GRACE_MS = 600;
 			var syncDrawer = function () {
 				try {
 					applyChipPos();
@@ -636,6 +731,8 @@ function flag(name, dflt) {
 						return;
 					}
 					var rail = document.querySelector('[class*="hHd-Xa_root"]');
+					if (rail) railLastSeen = Date.now();
+					else if (drawerOpen && Date.now() - railLastSeen < RAIL_GRACE_MS) return;
 					var open = !!rail && String(rail.className).indexOf("hHd-Xa_collapsed") === -1;
 					if (open !== drawerOpen) {
 						drawerOpen = open;
@@ -643,14 +740,21 @@ function flag(name, dflt) {
 					}
 				} catch (e) {}
 			};
+			// Every streaming token mutates the document, so in a multi-session
+			// storm this observer fires per token and each run costs full-
+			// document queries — a class flip restyles the entire page. Cap the
+			// reaction at a leading+trailing 200ms: taps still sync instantly
+			// through the click handler below, the storm collapses into at
+			// most five runs per second.
+			var syncDrawerThrottled = mfxThrottle(syncDrawer, 200);
 			setInterval(syncDrawer, 800);
-			window.addEventListener("resize", syncDrawer);
+			window.addEventListener("resize", syncDrawerThrottled);
 			syncDrawer();
 			// instant sync + overlay manners, attached to the document: the
 			// sidebar column is not mounted yet when the plugin applies, and
 			// the host remounts the rail root on toggle (hence childList)
 			try {
-				new MutationObserver(syncDrawer).observe(document.documentElement,
+				new MutationObserver(syncDrawerThrottled).observe(document.documentElement,
 					{ subtree: true, attributes: true, attributeFilter: ["class"], childList: true });
 			} catch (e) {}
 			document.addEventListener("click", function (ev) {
@@ -659,12 +763,13 @@ function flag(name, dflt) {
 					if (!document.documentElement.classList.contains("mfx-drawer-open")) return;
 					if (ev.target && ev.target.closest && ev.target.closest('[class*="hHd-Xa_toggle"]')) return;
 					// picking a session inside the drawer closes it — the host
-					// does not collapse what is an overlay here
+					// does not collapse what is an overlay here; the close
+					// retries so a storm-time remount cannot swallow the click
+					// and strand the drawer over the freshly opened session
 					setTimeout(function () {
 						if (!document.documentElement.classList.contains("mfx-drawer-open")) return;
 						if (document.querySelector('[class*="VOzbGW_overlay"]')) return;
-						var t = document.querySelector('[class*="hHd-Xa_toggle"]');
-						if (t) t.click();
+						closeDrawerRetrying();
 					}, 180);
 				} catch (e) {}
 			}, true);
@@ -764,12 +869,16 @@ function flag(name, dflt) {
 			};
 			// the menu mounts on open and remounts across pane switches; the
 			// observer restyles it before its first paint, the interval catches
-			// layout drift the observer misses
+			// layout drift the observer misses. The observer callback is
+			// throttled: streaming tokens append nodes continuously, and an
+			// unthrottled substring querySelectorAll per mutation starves
+			// input handling during a multi-session storm.
+			var placeMenusThrottled = mfxThrottle(placeMenus, 250);
 			try {
-				new MutationObserver(placeMenus).observe(document.body,
+				new MutationObserver(placeMenusThrottled).observe(document.body,
 					{ subtree: true, childList: true });
 			} catch (e) {}
-			window.addEventListener("resize", placeMenus);
+			window.addEventListener("resize", placeMenusThrottled);
 			setInterval(placeMenus, 1000);
 			placeMenus();
 		}
@@ -813,6 +922,10 @@ function flag(name, dflt) {
 				if (!ok || ms > NET_STUCK_MS) {
 					netRecent.push({ path: entry.path, ms: ms, ok: ok, at: Date.now() });
 					netRecent = netRecent.filter(function (r) { return Date.now() - r.at < NET_KEEP_MS; });
+					// a storm can fail dozens of requests inside the keep
+					// window — cap the list so the per-second chip tooltip
+					// build stays bounded
+					if (netRecent.length > 50) netRecent = netRecent.slice(-50);
 				}
 			}
 			if (!window.__mfxFetchPatched) {
