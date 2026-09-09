@@ -56,6 +56,10 @@ Cada función anterior puede activarse o desactivarse en Ajustes → Plugins →
 
 Las rutas HTTP del plugin (subida, reinicio, edición de ajustes) no realizan autenticación propia — confían en la superficie web de `dsh` en la que se cargan. Antes de exponerlo más allá de localhost, colóquelo tras la misma barrera que protege el resto de la interfaz (autenticación en proxy inverso, enlace a loopback).
 
+## Enlaces de la comunidad
+
+- [Linux.Do](https://linux.do) — Una comunidad para compartir y debatir sobre tecnología.
+
 ## Licencia
 
 Distribuido bajo la [Synthetic Source License (SySL), versión 1.0](LICENSE).

@@ -56,6 +56,10 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 플러그인의 HTTP 라우트(업로드, 재시작, 설정 편집)는 자체 인증을 수행하지 않습니다 — 로드된 `dsh` 웹 서피스를 신뢰합니다. localhost 밖으로 노출하기 전에 UI의 나머지 부분을 보호하는 것과 같은 게이트(리버스 프록시 인증, 루프백 바인딩) 뒤에 두세요.
 
+## 커뮤니티 링크
+
+- [Linux.Do](https://linux.do) — 기술을 공유하고 논의하는 커뮤니티입니다.
+
 ## 라이선스
 
 [Synthetic Source License(SySL) Version 1.0](LICENSE)로 배포됩니다.

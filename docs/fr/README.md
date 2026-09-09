@@ -56,6 +56,10 @@ Chaque fonction ci-dessus peut être activée ou désactivée dans Paramètres �
 
 Les routes HTTP du plugin (envoi, redémarrage, édition des paramètres) n'effectuent aucune authentification propre — elles font confiance à la surface web de `dsh` dans laquelle elles sont chargées. Avant toute exposition au-delà de localhost, placez le déploiement derrière la même barrière que le reste de l'interface (authentification par proxy inverse, écoute en loopback).
 
+## Liens communautaires
+
+- [Linux.Do](https://linux.do) — Une communauté pour partager et discuter de technologie.
+
 ## Licence
 
 Distribué sous la [Synthetic Source License (SySL), version 1.0](LICENSE).

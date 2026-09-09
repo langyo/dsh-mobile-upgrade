@@ -56,6 +56,10 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 外掛的 HTTP 路由（上傳、重新啟動、設定編輯）自身不做任何鑑別——它們信任所載入的 `dsh` web 表層。對外暴露部署之前，請把它放到保護其餘介面的同一道閘門之後（反向代理認證、僅回環繫結）。
 
+## 社群連結
+
+- [Linux.Do](https://linux.do) —— 一個分享與討論技術的社群。
+
 ## 授權
 
 以[合成原始碼授權條款（SySL）1.0 版](LICENSE)散佈。
