@@ -56,6 +56,10 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 プラグインの HTTP ルート（アップロード、再起動、設定編集）は自身では認証を行いません — ロードされた `dsh` web サーフェスを信頼します。localhost 以外に公開する前に、UI の他の部分を守っているのと同じゲート（リバースプロキシ認証、ループバック束縛）の背後に置いてください。
 
+## コミュニティリンク
+
+- [Linux.Do](https://linux.do) — 技術を共有し、語り合うコミュニティ。
+
 ## ライセンス
 
 [Synthetic Source License（SySL）Version 1.0](LICENSE) の下で配布されます。

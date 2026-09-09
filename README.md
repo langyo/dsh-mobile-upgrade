@@ -57,6 +57,10 @@ Every feature above can be switched in Settings → Plugins → mobile-ui-fix (e
 
 The plugin's HTTP routes (upload, restart, settings editing) perform no authentication of their own — they trust the `dsh` web surface they are loaded into. Put the deployment behind whatever gate protects the rest of the UI (reverse-proxy auth, loopback binding) before exposing it beyond localhost.
 
+## Community Links
+
+- [Linux.Do](https://linux.do) — A community for sharing and discussing technology.
+
 ## License
 
 Distributed under the [Synthetic Source License (SySL), Version 1.0](LICENSE).

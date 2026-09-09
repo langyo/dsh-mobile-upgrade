@@ -56,6 +56,10 @@ Jede der obigen Funktionen lässt sich unter Einstellungen → Plugins → mobil
 
 Die HTTP-Routen des Plugins (Upload, Neustart, Einstellungsänderungen) nehmen keine eigene Authentifizierung vor — sie vertrauen der `dsh`-Web-Oberfläche, in die sie geladen werden. Bevor Sie die Bereitstellung über localhost hinaus freigeben, stellen Sie sie hinter dieselbe Schranke wie den Rest der Oberfläche (Reverse-Proxy-Auth, Loopback-Bindung).
 
+## Community-Links
+
+- [Linux.Do](https://linux.do) — Eine Community zum Teilen und Diskutieren von Technik.
+
 ## Lizenz
 
 Vertrieben unter der [Synthetic Source License (SySL), Version 1.0](LICENSE).

@@ -56,6 +56,10 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 插件的 HTTP 路由（上传、重启、设置编辑）自身不做任何鉴权——它们信任所加载的 `dsh` web 表层。对外暴露部署之前，请把它放到保护其余界面的同一道闸门之后（反代认证、仅回环绑定）。
 
+## 社区链接
+
+- [Linux.Do](https://linux.do) —— 一个分享和讨论技术的社区。
+
 ## 许可
 
 以[合成源代码许可证（SySL）1.0 版](LICENSE)分发。
