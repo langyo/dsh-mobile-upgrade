@@ -529,6 +529,16 @@ function flag(name, dflt) {
 		// The whale button is the host's own sidebar toggle (hHd-Xa_toggle);
 		// hHd-Xa_collapsed on the rail root is the state signal.
 		if (flag("drawer", true)) {
+			// The narrow/desktop decision must use the same measure as the
+			// drawer's own @media (max-width: 1023px) rules. window.innerWidth
+			// counts a classic scrollbar that media widths exclude (and
+			// fractional zoom can land between the two), so a desktop window
+			// near 1024px could classify as desktop in the JS while the CSS
+			// still styles it as mobile: the chip swallows the sidebar and
+			// the expanded rail renders inside the closed chip with no
+			// drawer-open class to rescue it. One shared query decides for
+			// both sides, so the modes can no longer disagree.
+			var desktopMQ = window.matchMedia("(min-width: 1024px)");
 			var scrim = document.createElement("div");
 			scrim.id = "mfx-scrim";
 			scrim.addEventListener("click", function () {
@@ -636,9 +646,15 @@ function flag(name, dflt) {
 			}
 			function applyChipPos() {
 				var chip = document.querySelector('[class*="pI_x6G_sidebarCol"]');
-				if (window.innerWidth >= 1024) {
-					if (chip) { chip.style.left = ""; chip.style.right = ""; chip.style.top = ""; }
+				if (desktopMQ.matches) {
+					// desktop: back to a plain grid column. A drag interrupted
+					// by a remount can leave a frozen transition behind, and a
+					// stale moved flag would swallow the first click on the
+					// restored sidebar — clear both on the way back.
+					if (chip) { chip.style.left = ""; chip.style.right = ""; chip.style.top = ""; chip.style.transition = ""; }
 					document.documentElement.classList.remove("mfx-chip-right");
+					chipDrag.active = false;
+					chipDrag.moved = false;
 					return;
 				}
 				chipTop = clampChipTop(chipTop);
@@ -650,7 +666,7 @@ function flag(name, dflt) {
 			}
 			var chipDrag = { active: false, moved: false, x: 0, y: 0, l: 0, t: 0, w: 56, curL: 10, curT: 10 };
 			document.addEventListener("pointerdown", function (ev) {
-				if (window.innerWidth >= 1024) return;
+				if (desktopMQ.matches) return;
 				if (document.documentElement.classList.contains("mfx-drawer-open")) return;
 				var chip = ev.target && ev.target.closest ? ev.target.closest('[class*="pI_x6G_sidebarCol"]') : null;
 				if (!chip) return;
@@ -722,7 +738,7 @@ function flag(name, dflt) {
 			var syncDrawer = function () {
 				try {
 					applyChipPos();
-					if (window.innerWidth >= 1024) {
+					if (desktopMQ.matches) {
 						// desktop: the sidebar is a regular grid column, never a drawer
 						if (drawerOpen !== false) {
 							drawerOpen = false;
