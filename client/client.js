@@ -24,6 +24,9 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //   4. narrow drawer: the collapsed rail keeps only the whale toggle;
 //      the expanded sidebar floats above full-width content as a drawer
 //      (the whale is the host's own toggle, hHd-Xa_collapsed is the state).
+//      The takeover flips atomically — no geometry transition to freeze on a
+//      busy main thread — and a tap that closes it moves the geometry in the
+//      same frame instead of waiting for the host's re-render.
 //   5. narrow settings: the dialog's side nav becomes horizontal top tabs.
 //   6. narrow model menu: the composer's model menu lands full-width.
 //   7. network chip: a slot chip next to the paperclip surfaces /api/
@@ -39,9 +42,11 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //      the settings poller backs off while the host is unreachable, and a
 //      rail remount keeps the drawer state for a grace period instead of
 //      flapping the drawer — no per-mutation layout work, no frozen input,
-//      no white-flashing sidebar. Drawer close taps (scrim, picking a
-//      session) retry through a remount instead of landing on a stale
-//      toggle and stranding the drawer open.
+//      no white-flashing sidebar. A host state that does not survive the
+//      settle window is ignored entirely, so a remount's transient
+//      collapsed/expanded frame cannot move the takeover, and drawer close
+//      taps (the whale, the scrim, a session row) collapse it on the spot and
+//      then chase the host's toggle only if its own state has not followed.
 //
 // Optional features are toggled with localStorage keys (value "0" = off):
 //   mfx-attach   (default on) — the 📎 upload button
@@ -554,38 +559,10 @@ function flag(name, dflt) {
 			var scrim = document.createElement("div");
 			scrim.id = "mfx-scrim";
 			scrim.addEventListener("click", function () {
-				closeDrawerRetrying();
+				collapseDrawer(false);
 			});
 			document.body.appendChild(scrim);
 
-			// During a storm the session switch re-renders the sidebar and a
-			// one-shot toggle click can land on a toggle that is being
-			// remounted — stale or absent — and silently do nothing, leaving
-			// the drawer stuck open over the content with nothing left to
-			// click. Retry through the remount. The rail's own collapsed
-			// class is the truth this loop exits on (or the attempt cap,
-			// which degrades to the old one-shot's terminal state only after
-			// 3.6s of tries): the mirror class on <html> is unreliable here,
-			// because the hysteresis expiry flips it off mid-gap and the
-			// remounting rail pops the drawer right back open — bailing on
-			// the mirror is exactly how the one-shot close stranded the
-			// drawer before. The growing delays ride out a busy main thread;
-			// a landed click is seen as collapsed on the next recheck, so
-			// the loop stops and cannot toggle forever.
-			function closeDrawerRetrying() {
-				var delays = [150, 250, 400, 600, 900, 1300];
-				var attempt = 0;
-				var tryClose = function () {
-					try {
-						var rail = document.querySelector('[class*="hHd-Xa_root"]');
-						if (rail && String(rail.className).indexOf("hHd-Xa_collapsed") !== -1) return;
-						if (attempt < delays.length) setTimeout(tryClose, delays[attempt++]);
-						var t = rail ? document.querySelector('[class*="hHd-Xa_toggle"]') : null;
-						if (t) t.click();
-					} catch (e) {}
-				};
-				tryClose();
-			}
 
 			var dstyle = document.createElement("style");
 			dstyle.id = "mfx-drawer-style";
@@ -607,11 +584,19 @@ function flag(name, dflt) {
 				   filter would turn the chip into the containing block for the
 				   fixed-position settings dialog that portals inside the sidebar
 				   subtree. The gray tint is visible on light and dark pages
-				   alike, which a white tint never is. */
+				   alike, which a white tint never is.
+				   No transition on the geometry either: the chip and the drawer
+				   are two settled states, and animating between them is what the
+				   phone report caught frozen halfway. A transition advances with
+				   frames, so on a main thread busy with streaming sessions the
+				   takeover paints at whatever offset the last rendered frame
+				   reached — and because every mirror flip restarts it, the drawer
+				   can sit at a half-expanded position for seconds. Flipping the
+				   two states atomically costs a slide and buys a takeover that
+				   is never in between. */
 				"  [class*=\"pI_x6G_sidebarCol\"] { position: fixed; top: 10px; left: 10px; width: 56px;",
 				"    height: 56px !important; z-index: 130; overflow: hidden;",
 				"    box-shadow: 0 2px 14px rgba(0,0,0,.18); touch-action: none;",
-				"    transition: left .28s cubic-bezier(.2,.8,.2,1), top .28s cubic-bezier(.2,.8,.2,1);",
 				"    background: rgba(128,132,140,.28) !important; }",
 				"  html:not(.mfx-drawer-open) [class*=\"pI_x6G_sidebarCol\"] { border-radius: 50% !important; }",
 				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] { height: auto !important;",
@@ -638,6 +623,25 @@ function flag(name, dflt) {
 				"    border-radius: 0 !important; box-shadow: 0 0 44px rgba(0,0,0,.4);",
 				"    background: none !important; -webkit-backdrop-filter: none; backdrop-filter: none; }",
 				"  html.mfx-drawer-open.mfx-chip-right [class*=\"pI_x6G_sidebarCol\"] { left: auto !important; right: 0 !important; }",
+				/* Closing is ours the moment the user asks for it (see
+				   collapseDrawer), but the host's commit — the class that turns
+				   the rail back into a chip — is a React re-render that can take
+				   seconds on a loaded phone. Until it lands the closed chip would
+				   hold the still-expanded rail: a 56px crop of the sidebar's top
+				   left corner with the whale far outside it. This state paints
+				   the collapsed rail's own look, exactly as the rules above do
+				   once the host catches up. */
+				"  html.mfx-chip-closing [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_root\"]",
+				"  { height: auto !important; min-height: 0 !important; padding: 0 !important; }",
+				"  html.mfx-chip-closing [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_toggle\"]",
+				"  { position: absolute !important; inset: 0 !important; width: 100% !important;",
+				"    height: 100% !important; display: grid !important; place-items: center !important;",
+				"    margin: 0 !important; padding: 0 !important; }",
+				"  html.mfx-chip-closing [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_newSession\"],",
+				"  html.mfx-chip-closing [class*=\"pI_x6G_sidebarCol\"] [class*=\"bhn1Oq_iconButton\"],",
+				"  html.mfx-chip-closing [class*=\"pI_x6G_sidebarCol\"] [class*=\"bhn1Oq_searchButton\"],",
+				"  html.mfx-chip-closing [class*=\"pI_x6G_sidebarCol\"] [data-slot=\"sidebar.footer.action\"],",
+				"  html.mfx-chip-closing [class*=\"pI_x6G_sidebarCol\"] [class*=\"VOzbGW_railRow\"] { display: none !important; }",
 				"  html.mfx-drawer-open #mfx-scrim { display: block; }",
 				"}"
 			].join("\n");
@@ -656,25 +660,53 @@ function flag(name, dflt) {
 			function clampChipTop(t) {
 				return Math.max(10, Math.min(window.innerHeight - 66, t));
 			}
+			// Applied chip geometry, so the writes below can be skipped when
+			// nothing moved: this runs on every throttled observer pass and every
+			// 800ms tick, and each write invalidates style for a fixed element
+			// that floats over the whole page — during a storm that is pure
+			// overhead for a value that has not changed.
+			var chipApplied = { el: undefined, side: null, edge: null, top: null, desktop: null };
 			function applyChipPos() {
 				var chip = document.querySelector('[class*="pI_x6G_sidebarCol"]');
+				if (chipApplied.el !== chip) {
+					// a remount hands over a fresh element with no inline geometry
+					chipApplied.el = chip;
+					chipApplied.edge = null;
+					chipApplied.top = null;
+				}
 				if (desktopMQ.matches) {
 					// desktop: back to a plain grid column. A drag interrupted
-					// by a remount can leave a frozen transition behind, and a
-					// stale moved flag would swallow the first click on the
-					// restored sidebar — clear both on the way back.
-					if (chip) { chip.style.left = ""; chip.style.right = ""; chip.style.top = ""; chip.style.transition = ""; }
-					document.documentElement.classList.remove("mfx-chip-right");
+					// by a remount can leave a stale moved flag that would
+					// swallow the first click on the restored sidebar — clear
+					// both the inline position and the flag on the way back.
+					if (chipApplied.desktop !== true) {
+						chipApplied.desktop = true;
+						if (chip) { chip.style.left = ""; chip.style.right = ""; chip.style.top = ""; }
+						document.documentElement.classList.remove("mfx-chip-right");
+						chipApplied.side = null;
+						chipApplied.edge = null;
+						chipApplied.top = null;
+					}
 					chipDrag.active = false;
 					chipDrag.moved = false;
 					return;
 				}
+				chipApplied.desktop = false;
 				chipTop = clampChipTop(chipTop);
-				document.documentElement.classList.toggle("mfx-chip-right", chipSide === "right");
+				if (chipApplied.side !== chipSide) {
+					chipApplied.side = chipSide;
+					document.documentElement.classList.toggle("mfx-chip-right", chipSide === "right");
+				}
 				if (!chip) return;
-				if (chipSide === "right") { chip.style.left = "auto"; chip.style.right = "10px"; }
-				else { chip.style.right = "auto"; chip.style.left = "10px"; }
-				chip.style.top = chipTop + "px";
+				if (chipApplied.edge !== chipSide) {
+					chipApplied.edge = chipSide;
+					if (chipSide === "right") { chip.style.left = "auto"; chip.style.right = "10px"; }
+					else { chip.style.right = "auto"; chip.style.left = "10px"; }
+				}
+				if (chipApplied.top !== chipTop) {
+					chipApplied.top = chipTop;
+					chip.style.top = chipTop + "px";
+				}
 			}
 			var chipDrag = { active: false, moved: false, x: 0, y: 0, l: 0, t: 0, w: 56, curL: 10, curT: 10 };
 			document.addEventListener("pointerdown", function (ev) {
@@ -692,7 +724,8 @@ function flag(name, dflt) {
 				chipDrag.w = r.width;
 				chipDrag.curL = r.left;
 				chipDrag.curT = r.top;
-				chip.style.transition = "none";
+				// no transition to suspend: the geometry flips atomically, so a
+				// drag only writes the position it is already painting
 			}, true);
 			document.addEventListener("pointermove", function (ev) {
 				if (!chipDrag.active) return;
@@ -710,6 +743,10 @@ function flag(name, dflt) {
 				if (!chipDrag.moved) return;
 				chipDrag.curL = Math.max(8, Math.min(window.innerWidth - chipDrag.w - 8, chipDrag.l + dx));
 				chipDrag.curT = clampChipTop(chipDrag.t + dy);
+				// the drag writes the position itself, so the applied-geometry
+				// cache no longer describes the element: invalidate the edge so
+				// the release still snaps the chip back to its side
+				chipApplied.edge = null;
 				chip.style.right = "auto";
 				chip.style.left = chipDrag.curL + "px";
 				chip.style.top = chipDrag.curT + "px";
@@ -718,7 +755,6 @@ function flag(name, dflt) {
 				if (!chipDrag.active) return;
 				chipDrag.active = false;
 				var chip = document.querySelector('[class*="pI_x6G_sidebarCol"]');
-				if (chip) chip.style.transition = "";
 				if (!chipDrag.moved) return;
 				chipSide = chipDrag.curL + chipDrag.w / 2 < window.innerWidth / 2 ? "left" : "right";
 				chipTop = chipDrag.curT;
@@ -726,7 +762,8 @@ function flag(name, dflt) {
 					window.localStorage.setItem("mfx-chip-side", chipSide);
 					window.localStorage.setItem("mfx-chip-top", String(chipTop));
 				} catch (e) {}
-				if (chip) void chip.offsetWidth; // flush so the edge snap animates
+				// the edge snap is instant now (no transition), so there is no
+				// reflow to flush and no animation to catch mid-flight
 				applyChipPos();
 			}, true);
 			document.addEventListener("click", function (ev) {
@@ -747,25 +784,150 @@ function flag(name, dflt) {
 			// still applies at once because the rail stays mounted.
 			var railLastSeen = 0;
 			var RAIL_GRACE_MS = 600;
+			// ---------- drawer state machine ----------
+			// The rail's class is the host's state and the thing we mirror, but
+			// it arrives in two flavours that must not be treated alike:
+			//
+			//   * the commit for a tap the user just made — which we already
+			//     answered ourselves (collapseDrawer below), so it only has to
+			//     confirm what is on screen;
+			//   * churn from a remount or a re-render while sessions stream —
+			//     a transient flip that must NOT move the takeover at all.
+			//
+			// A drawer that mirrors every transient is the phone report's
+			// half-expanded freeze: a live run with the host class churning
+			// every 300ms produced seven drawer flips in three seconds, each one
+			// restarting the geometry animation from wherever it had reached, so
+			// the drawer sat visibly stuck between the chip and the panel. Three
+			// rules keep that from happening:
+			//
+			//   1. a mirrored state change moves the drawer only once the host
+			//      has held it for RAIL_SETTLE_MS (re-checked on a timer, never
+			//      trusted on the first sighting), so a remount's transient flip
+			//      is ignored — measured: host states held for 100/200/300/500ms
+			//      move nothing, a tap moves the drawer on the frame it lands
+			//      because the tap itself is the evidence (rule 2). The window
+			//      matches RAIL_GRACE_MS: a state the host cannot hold as long as
+			//      a remount gap is churn, not a state;
+			//   2. a tap's own target state (intent) outranks the mirror until
+			//      the host's commit agrees or the grace expires — without it the
+			//      stale class the host has not updated yet would reopen the
+			//      drawer the user just closed;
+			//   3. the rail is also watched directly (attributes only, one
+			//      element) so the commit is noticed in the frame it lands
+			//      instead of within the document-wide observer's 200ms window.
+			var RAIL_SETTLE_MS = 600;
+			var INTENT_GRACE_MS = 2500;
+			var railSeen = null;
+			var railSince = 0;
+			var intent = null;
+			var intentUntil = 0;
+			var railWatched = null;
+			var railObserver = null;
+			function railRoot() {
+				try { return document.querySelector('[class*="hHd-Xa_root"]'); } catch (e) { return null; }
+			}
+			function railState() {
+				var rail = railRoot();
+				if (!rail) return "missing";
+				return String(rail.className).indexOf("hHd-Xa_collapsed") !== -1 ? "collapsed" : "expanded";
+			}
+			function setDrawer(open) {
+				drawerOpen = open;
+				document.documentElement.classList.toggle("mfx-drawer-open", open);
+				// opening retires the closed chip's rescue look: the rail is the
+				// drawer's own again
+				if (open) document.documentElement.classList.remove("mfx-chip-closing");
+			}
+			function settleIntent() {
+				intent = null;
+				document.documentElement.classList.remove("mfx-chip-closing");
+			}
+			function syncDrawerState() {
+				var state = railState();
+				if (state === "missing") {
+					if (drawerOpen && Date.now() - railLastSeen < RAIL_GRACE_MS) return;
+					state = "collapsed";
+				} else {
+					railLastSeen = Date.now();
+					// the host rebuilds the rail root on toggle: follow the new
+					// element so the class watch above keeps working
+					var rail = railRoot();
+					if (rail !== railWatched) {
+						railWatched = rail;
+						if (railObserver) railObserver.disconnect();
+						try {
+							railObserver = new MutationObserver(syncDrawer);
+							railObserver.observe(rail, { attributes: true, attributeFilter: ["class"] });
+						} catch (e) { railObserver = null; }
+					}
+				}
+				if (intent !== null) {
+					var want = intent;
+					var agrees = want ? state === "expanded" : state === "collapsed";
+					if (agrees) {
+						// the host's commit confirms the tap: apply it now instead
+						// of waiting out the settle window the churn path needs
+						settleIntent();
+						if (want !== drawerOpen) setDrawer(want);
+					} else if (Date.now() > intentUntil) {
+						settleIntent();
+					} else {
+						return;
+					}
+				}
+				var open = state === "expanded";
+				if (open === drawerOpen) { railSeen = state; return; }
+				if (railSeen !== state) {
+					railSeen = state;
+					railSince = Date.now();
+					// confirm on a timer: a state the host does not hold for even
+					// this long is a remount frame, not a state
+					setTimeout(syncDrawerState, RAIL_SETTLE_MS + 20);
+					return;
+				}
+				if (Date.now() - railSince < RAIL_SETTLE_MS) return;
+				setDrawer(open);
+			}
+			// Collapse the takeover now. The geometry must not wait for the
+			// host: its flip is a React commit over the whole sidebar, and on a
+			// loaded phone that commit can lag the tap by seconds — until it
+			// lands, an open takeover holds a rail that is already the collapsed
+			// white strip (the phone report's "sidebar turns white and will not
+			// go back"). So the tap collapses the geometry in the same frame,
+			// the chip gets the collapsed rail's own look while the host catches
+			// up (mfx-chip-closing), and the host's toggle is clicked only if its
+			// own state has not collapsed by the time we check — never twice for
+			// one tap, which would toggle it straight back open.
+			function collapseDrawer(hostAlreadyToggling) {
+				settleIntent();
+				if (railState() === "expanded") document.documentElement.classList.add("mfx-chip-closing");
+				setDrawer(false);
+				intent = false;
+				intentUntil = Date.now() + INTENT_GRACE_MS;
+				var delays = hostAlreadyToggling ? [600, 700, 900, 1200] : [0, 200, 300, 500, 800, 1200];
+				var attempt = 0;
+				var step = function () {
+					if (railState() === "collapsed" || railState() === "missing") { settleIntent(); return; }
+					if (attempt >= delays.length) { settleIntent(); return; }
+					setTimeout(function () {
+						if (railState() === "collapsed" || railState() === "missing") { settleIntent(); return; }
+						var t = document.querySelector('[class*="hHd-Xa_toggle"]');
+						if (t) t.click();
+						step();
+					}, delays[attempt++]);
+				};
+				step();
+			}
 			var syncDrawer = function () {
 				try {
 					applyChipPos();
 					if (desktopMQ.matches) {
 						// desktop: the sidebar is a regular grid column, never a drawer
-						if (drawerOpen !== false) {
-							drawerOpen = false;
-							document.documentElement.classList.remove("mfx-drawer-open");
-						}
+						if (drawerOpen !== false) setDrawer(false);
 						return;
 					}
-					var rail = document.querySelector('[class*="hHd-Xa_root"]');
-					if (rail) railLastSeen = Date.now();
-					else if (drawerOpen && Date.now() - railLastSeen < RAIL_GRACE_MS) return;
-					var open = !!rail && String(rail.className).indexOf("hHd-Xa_collapsed") === -1;
-					if (open !== drawerOpen) {
-						drawerOpen = open;
-						document.documentElement.classList.toggle("mfx-drawer-open", open);
-					}
+					syncDrawerState();
 				} catch (e) {}
 			};
 			// Every streaming token mutates the document, so in a multi-session
@@ -788,17 +950,44 @@ function flag(name, dflt) {
 			document.addEventListener("click", function (ev) {
 				setTimeout(syncDrawer, 0);
 				try {
+					// Only a real tap drives the takeover's own state. The chase
+					// below clicks the host's toggle itself, and a synthetic click
+					// must not read as a second tap: it would re-enter this
+					// handler, restart the chase while the first one is still
+					// running, and the two would toggle the rail back and forth
+					// forever (measured: the scrim close left the host's rail
+					// expanded with the chase clicking every few hundred ms).
+					if (!ev.isTrusted) return;
+					var target = ev.target;
+					var onToggle = target && target.closest && target.closest('[class*="hHd-Xa_toggle"]');
+					// The whale both opens and closes. Closing is ours on the
+					// spot (collapseDrawer); opening stays the host's to perform,
+					// but this tap already proves the change is intended, so the
+					// mirror may apply the host's commit without waiting out the
+					// settle window it needs to distrust remount churn.
+					if (onToggle && !desktopMQ.matches) {
+						// the visible state decides, not the rail's class: after
+						// an optimistic close the host's class still says
+						// expanded for as long as its commit takes, and reading
+						// that would turn the very next tap (the user reopening)
+						// into another close — measured: that tap was swallowed
+						// and the drawer stayed shut until a later tap toggled it
+						// out of sync with the rail
+						if (drawerOpen) {
+							collapseDrawer(true);
+						} else {
+							intent = true;
+							intentUntil = Date.now() + INTENT_GRACE_MS;
+							syncDrawerState();
+						}
+						return;
+					}
 					if (!document.documentElement.classList.contains("mfx-drawer-open")) return;
-					if (ev.target && ev.target.closest && ev.target.closest('[class*="hHd-Xa_toggle"]')) return;
+					if (document.querySelector('[class*="VOzbGW_overlay"]')) return;
 					// picking a session inside the drawer closes it — the host
-					// does not collapse what is an overlay here; the close
-					// retries so a storm-time remount cannot swallow the click
-					// and strand the drawer over the freshly opened session
-					setTimeout(function () {
-						if (!document.documentElement.classList.contains("mfx-drawer-open")) return;
-						if (document.querySelector('[class*="VOzbGW_overlay"]')) return;
-						closeDrawerRetrying();
-					}, 180);
+					// does not collapse what is an overlay here, and the collapse
+					// is ours to perform now, not 180ms later
+					collapseDrawer(false);
 				} catch (e) {}
 			}, true);
 		}
