@@ -558,9 +558,13 @@ function flag(name, dflt) {
 			var desktopMQ = window.matchMedia("(min-width: 1024px)");
 			var scrim = document.createElement("div");
 			scrim.id = "mfx-scrim";
-			scrim.addEventListener("click", function () {
-				collapseDrawer(false);
-			});
+			// No click listener on the scrim itself: a tap on it is a trusted
+			// click that the document handler below already reads as "close".
+			// Wiring both was a real defect — two chases started from one tap,
+			// their toggle clicks cancelled each other, the host's rail stayed
+			// expanded and the mirror reopened the drawer once the intent
+			// expired (measured: 12 clicks in 6 cancelling pairs, reopen at
+			// 2.8s). One entry point, one chase.
 			document.body.appendChild(scrim);
 
 
@@ -822,6 +826,10 @@ function flag(name, dflt) {
 			var railSince = 0;
 			var intent = null;
 			var intentUntil = 0;
+			// Which chase owns the host's toggle right now (see collapseDrawer):
+			// one tap, one chase, and every step re-checks that it is still the
+			// current one before clicking.
+			var chaseToken = 0;
 			var railWatched = null;
 			var railObserver = null;
 			function railRoot() {
@@ -841,6 +849,10 @@ function flag(name, dflt) {
 			}
 			function settleIntent() {
 				intent = null;
+				// a chase belongs to the collapse that started it: settling the
+				// intent retires it, so no queued click can act on a matter the
+				// plugin already considers closed
+				chaseToken++;
 				document.documentElement.classList.remove("mfx-chip-closing");
 			}
 			function syncDrawerState() {
@@ -857,7 +869,9 @@ function flag(name, dflt) {
 						railWatched = rail;
 						if (railObserver) railObserver.disconnect();
 						try {
-							railObserver = new MutationObserver(syncDrawer);
+							// the rail's class says nothing about the chip's
+							// position, so the watch runs the state machine alone
+							railObserver = new MutationObserver(syncDrawerState);
 							railObserver.observe(rail, { attributes: true, attributeFilter: ["class"] });
 						} catch (e) { railObserver = null; }
 					}
@@ -905,12 +919,21 @@ function flag(name, dflt) {
 				setDrawer(false);
 				intent = false;
 				intentUntil = Date.now() + INTENT_GRACE_MS;
-				var delays = hostAlreadyToggling ? [600, 700, 900, 1200] : [0, 200, 300, 500, 800, 1200];
+				// The first click has to wait for the button's own commit to land:
+				// the host's state is React state, so clicking again before its
+				// re-render arrives toggles the rail straight back. A tap on the
+				// whale is already being processed by the host (longer wait); a
+				// tap elsewhere (the scrim, a session row) is not, but its click
+				// still needs the same room before a second one is fair.
+				var delays = hostAlreadyToggling ? [700, 800, 1000, 1300] : [400, 700, 900, 1200];
+				var token = chaseToken;
 				var attempt = 0;
 				var step = function () {
+					if (token !== chaseToken) return;
 					if (railState() === "collapsed" || railState() === "missing") { settleIntent(); return; }
 					if (attempt >= delays.length) { settleIntent(); return; }
 					setTimeout(function () {
+						if (token !== chaseToken) return;
 						if (railState() === "collapsed" || railState() === "missing") { settleIntent(); return; }
 						var t = document.querySelector('[class*="hHd-Xa_toggle"]');
 						if (t) t.click();
