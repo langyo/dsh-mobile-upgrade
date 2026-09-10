@@ -1001,16 +1001,35 @@ function flag(name, dflt) {
 						} else {
 							intent = true;
 							intentUntil = Date.now() + INTENT_GRACE_MS;
+							// a new intent supersedes any chase still running from
+							// an earlier close: that chase would otherwise fire its
+							// next click after the drawer is open again and toggle
+							// the host's rail shut under the user
+							chaseToken++;
 							syncDrawerState();
 						}
 						return;
 					}
 					if (!document.documentElement.classList.contains("mfx-drawer-open")) return;
 					if (document.querySelector('[class*="VOzbGW_overlay"]')) return;
-					// picking a session inside the drawer closes it — the host
-					// does not collapse what is an overlay here, and the collapse
-					// is ours to perform now, not 180ms later
-					collapseDrawer(false);
+					// Only opening a session closes the takeover. Tapping a
+					// session row, or New Session, is that; everything else inside
+					// the drawer is drawer furniture the user is still working
+					// with — "Show N more sessions", unfolding a workspace, the
+					// search box, a settings trigger — and must leave the drawer
+					// exactly where it is.
+					//
+					// This is deliberately the element that was tapped rather
+					// than a guess from what changed afterwards: an earlier take
+					// closed on any tap and, once made instant, folded the drawer
+					// out from under the user whenever they revealed more rows;
+					// a follow-up that compared the host's selected row instead
+					// also fired when unfolding a workspace unmounted that row.
+					var insideDrawer = !!(target && target.closest
+						&& target.closest('[class*="pI_x6G_sidebarCol"]'));
+					var opensSession = !!(target && target.closest
+						&& target.closest('[class*="sessionRow"], [class*="newSession"]'));
+					if (opensSession || !insideDrawer) collapseDrawer(false);
 				} catch (e) {}
 			}, true);
 		}
