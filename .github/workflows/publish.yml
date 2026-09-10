@@ -1,28 +1,91 @@
 name: Publish
 
+# Releases are cut from a tag, and the release is what moves `latest` — which
+# is the thing the curated plugin list points at. See the release step below:
+# the asset name is deliberately version-free.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to publish (must equal the package version, e.g. v0.5.0)
+        required: true
+        type: string
 
 permissions:
-  contents: read
-  id-token: write
+  contents: write # create the GitHub Release and upload its assets
+  id-token: write # npm trusted publishing
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
+
       - name: Use an npm that understands trusted publishing
         run: npm install -g npm@latest
+
+      # The tag is the version, and the version is what npm publishes. A bare
+      # workflow_dispatch used to skip this check and publish whatever happened
+      # to be checked out; TAG now always resolves to a tag, so it always runs.
       - name: Check the package version matches the tag
-        if: startsWith(github.ref, 'refs/tags/')
         run: |
-          node -e "const v=require('./package.json').version; const t=process.env.GITHUB_REF_NAME.replace(/^v/,''); if (v!==t) { console.error('package version ' + v + ' != tag ' + t); process.exit(1); }"
+          node -e "const v=require('./package.json').version; const t=process.env.TAG.replace(/^v/,''); if (v!==t) { console.error('package version ' + v + ' != tag ' + t); process.exit(1); }"
+
+      - name: Check the manifest, both halves and the docs
+        run: npm run check
+
+      # Re-runnable on purpose. The release asset is the deliverable, so a run
+      # that died between publishing and attaching must be repeatable: npm
+      # rejects an existing version, which would otherwise strand the release
+      # forever. An already-published version is therefore the one case where
+      # skipping is correct — and it is checked again after a failed publish,
+      # because that is exactly how "already published" presents itself.
       - name: Publish
-        run: npm publish --provenance
+        run: |
+          PKG=$(node -p "require('./package.json').name")
+          VERSION="${TAG#v}"
+          published() { npm view "${PKG}@${VERSION}" version >/dev/null 2>&1; }
+          if published; then
+            echo "::notice::${PKG}@${VERSION} is already on npm — skipping publish, going straight to the release"
+          elif npm publish --provenance; then
+            echo "::notice::published ${PKG}@${VERSION}"
+          elif published; then
+            echo "::notice::${PKG}@${VERSION} is already on npm — this run is a retry; going straight to the release"
+          else
+            echo "::error::npm publish failed and ${PKG}@${VERSION} is not on the registry"
+            exit 1
+          fi
+
+      - name: Pack the prebuilt tarball
+        run: |
+          npm pack
+          # The curated list points at releases/latest/download/<name>.tgz: the
+          # `latest` segment is resolved when the URL is requested, but the
+          # filename is taken literally. A versioned filename therefore works on
+          # the day it is published and 404s the moment the next release moves
+          # `latest`, so the stable name is the one the list is told about.
+          PKG=$(node -p "require('./package.json').name")
+          cp "${PKG}-${TAG#v}.tgz" "${PKG##*/}.tgz"
+          ls -l ./*.tgz
+
+      # Attach both names: the stable one is the documented install URL, and the
+      # versioned one is what a human expects to find on a release page.
+      - name: Attach the release tarball
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PKG=$(node -p "require('./package.json').name")
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes
+          gh release upload "$TAG" "${PKG##*/}.tgz" "${PKG}-${TAG#v}.tgz" --clobber

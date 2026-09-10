@@ -2,6 +2,12 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	var React = require("react");
 	var inject = ["slots"];
 
+	// Identity shared with the host half: the settings section key and the
+	// route prefix both derive from the package name, so the two halves can
+	// only ever name this plugin in one way.
+	var PLUGIN_ID = "dsh-mobile-upgrade";
+	var ROUTE_PREFIX = "/plugins/" + PLUGIN_ID;
+
 	// Everything this plugin renders lives inside native host slots — no
 	// fixed-position body elements, no CSS overrides, no DOM polling.
 	//
@@ -42,8 +48,8 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //   mfx-modality (default on) — the provider-edit input-modality switches
 //   mfx-menus    (default on) — the model menu spanning the phone width
 //   mfx-net      (default on) — the stuck-request network chip
-// Without a localStorage override, the per-feature toggles of the server-side
-// "mobile-ui-fix" settings section decide (they take effect on next load).
+// Without a localStorage override, this plugin's own settings section decides
+// the per-feature toggles (they take effect on next load).
 var namespaceFlags = null;
 var namespaceRevision;
 var sectionListeners = [];
@@ -99,7 +105,7 @@ function flag(name, dflt) {
 				var namespaces = view && view.namespaces ? view.namespaces : [];
 				for (var i = 0; i < namespaces.length; i++) {
 					var entry = namespaces[i];
-					if ((entry.ns || entry.name || entry.id) !== "mobile-ui-fix") continue;
+					if ((entry.ns || entry.name || entry.id) !== PLUGIN_ID) continue;
 					if (entry.revision !== undefined) namespaceRevision = entry.revision;
 					var value = entry.value !== undefined ? entry.value : entry;
 					if (value && typeof value === "object") {
@@ -195,7 +201,7 @@ function flag(name, dflt) {
 		function uploadToHost(file) {
 			return new Promise(function (resolve, reject) {
 				var xhr = new XMLHttpRequest();
-				xhr.open("POST", "/plugins/mobile-ui-fix/upload?filename=" + encodeURIComponent(file.name));
+				xhr.open("POST", ROUTE_PREFIX + "/upload?filename=" + encodeURIComponent(file.name));
 				xhr.setRequestHeader("content-type", "application/octet-stream");
 				xhr.onload = function () {
 					try {
@@ -345,10 +351,10 @@ function flag(name, dflt) {
 						},
 						onClick: function () {
 							if (!window.confirm(restartConfirm())) return;
-							fetch("/plugins/mobile-ui-fix/restart", { method: "POST" }).catch(function () {});
+							fetch(ROUTE_PREFIX + "/restart", { method: "POST" }).catch(function () {});
 							var started = Date.now();
 							var timer = setInterval(function () {
-								fetch("/plugins/mobile-ui-fix/ping", { cache: "no-store" })
+								fetch(ROUTE_PREFIX + "/ping", { cache: "no-store" })
 									.then(function (r) {
 										if (r.ok && Date.now() - started > 3000) {
 											clearInterval(timer);
@@ -447,7 +453,7 @@ function flag(name, dflt) {
 					if (route !== modalityRoute || !modalityCache) {
 						// (re)load the on-disk state for this route
 						modalityRoute = route;
-						fetch("/plugins/mobile-ui-fix/llm-config", { cache: "no-store" })
+						fetch(ROUTE_PREFIX + "/llm-config", { cache: "no-store" })
 							.then(function (r) { return r.json(); })
 							.then(function (d) {
 								if (d.ok) { modalityCache = d.providers ?? {}; ensureModalitySwitches(); }
@@ -501,7 +507,7 @@ function flag(name, dflt) {
 									return bar.querySelector('input[data-mod="' + m + '"]').checked;
 								});
 								cb._busy = true;
-								fetch("/plugins/mobile-ui-fix/model-input", {
+								fetch(ROUTE_PREFIX + "/model-input", {
 									method: "POST",
 									headers: { "content-type": "application/json" },
 									body: JSON.stringify({ provider: route, modelId: modelId, input: input })
@@ -966,7 +972,7 @@ function flag(name, dflt) {
 				var ctl = new AbortController();
 				var timer = setTimeout(function () { ctl.abort(); }, 5000);
 				netToast("⏳ " + netT("正在探测服务…", "Probing the service…"));
-				fetch("/plugins/mobile-ui-fix/ping", { cache: "no-store", signal: ctl.signal })
+				fetch(ROUTE_PREFIX + "/ping", { cache: "no-store", signal: ctl.signal })
 					.then(function () {
 						clearTimeout(timer);
 						netToast("✓ " + netT("服务存活（ping " + (Date.now() - t0) + "ms）——卡住的是 API 路由本身", "Service alive (ping " + (Date.now() - t0) + "ms) — the API route itself is stuck"));
@@ -1034,5 +1040,5 @@ function flag(name, dflt) {
 			};
 		}
 	}
-	return { name: "dsh-mobile-upgrade", inject: inject, apply: apply };
+	return { name: PLUGIN_ID, inject: inject, apply: apply };
 }});

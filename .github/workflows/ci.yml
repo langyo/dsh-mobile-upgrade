@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A push storm on one PR only ever needs the newest run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # No install step, deliberately: every check is node-builtins only and this
+      # repository ships no lockfile, so `npm run check` runs on a bare checkout.
+      # `npm run check` is the same gate Publish runs before `npm publish`.
+      - run: npm run check

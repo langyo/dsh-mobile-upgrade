@@ -13,7 +13,7 @@
 - **窄屏设置标签** — 700px 以下设置对话框的侧向导航变成一行可横向滚动的标签。
 - **全宽模型菜单** — 700px 以下输入框的模型菜单重新锚定为正好手机宽度（左右各 12px 边距），不再落到屏幕外；垂直落点（触发器上方）仍由宿主负责。
 - **详情面板兜底** — 当前宿主的全屏工具详情面板关闭控件失效，窄屏上不再渲染它，聊天不会被挡住。
-- **逐功能开关** — 插件在 设置 → 插件 里安装 `mobile-ui-fix` 设置节，每个功能一枚开关。
+- **逐功能开关** — 插件在 设置 → 插件 里安装 `dsh-mobile-upgrade` 设置节，每个功能一枚开关。
 
 ## 截图
 
@@ -30,7 +30,7 @@
 dsh plugin --profile web add dsh-mobile-upgrade
 ```
 
-重启 `dsh web`，然后在手机上打开 web profile：回形针在输入框旁，重启行在 设置 → 通用，功能开关在 设置 → 插件 → mobile-ui-fix。
+重启 `dsh web`，然后在手机上打开 web profile：回形针在输入框旁，重启行在 设置 → 通用，功能开关在 设置 → 插件 → dsh-mobile-upgrade。
 
 需要 `dsh` 0.1.2-rc.1 或更新版本。
 
@@ -45,7 +45,7 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 ## 功能开关
 
-上文每个功能都可以在 设置 → 插件 → mobile-ui-fix 里切换（下次页面加载生效），也可以按设备用 `localStorage` 键覆盖——`mfx-attach`、`mfx-restart`、`mfx-settle`、`mfx-drawer`、`mfx-settings`、`mfx-modality`、`mfx-menus`——值为 `"0"` 即关闭该功能。
+上文每个功能都可以在 设置 → 插件 → dsh-mobile-upgrade 里切换（下次页面加载生效），也可以按设备用 `localStorage` 键覆盖——`mfx-attach`、`mfx-restart`、`mfx-settle`、`mfx-drawer`、`mfx-settings`、`mfx-modality`、`mfx-menus`——值为 `"0"` 即关闭该功能。
 
 ## 已知限制
 

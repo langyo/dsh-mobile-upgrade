@@ -13,7 +13,7 @@
 - **좁은 화면 설정 탭** — 700px 이하에서 설정 대화상자의 사이드 내비게이션이 가로 스크롤 탭 행으로 바뀝니다.
 - **전체 폭 모델 메뉴** — 700px 이하에서 컴포저의 모델 메뉴가 화면 밖으로 벗어나는 대신 정확히 화면 폭(좌우 12px 여백)으로 다시 앵커됩니다. 트리거 위라는 세로 배치는 계속 호스트가 담당합니다.
 - **상세 오버레이 처리** — 현재 호스트에서 닫기 컨트롤이 작동하지 않는 전체 화면 도구 상세 오버레이는 좁은 화면에서 렌더링하지 않아 채팅을 가둘 수 없습니다.
-- **기능별 토글** — 플러그인은 설정 → 플러그인에 `mobile-ui-fix` 섹션을 설치하여 기능별 스위치를 제공합니다.
+- **기능별 토글** — 플러그인은 설정 → 플러그인에 `dsh-mobile-upgrade` 섹션을 설치하여 기능별 스위치를 제공합니다.
 
 ## 스크린샷
 
@@ -30,7 +30,7 @@
 dsh plugin --profile web add dsh-mobile-upgrade
 ```
 
-`dsh web`을 재시작한 뒤 휴대폰에서 웹 프로파일을 열면: 클립은 컴포저에, 재시작 행은 설정 → 일반에, 기능 토글은 설정 → 플러그인 → mobile-ui-fix에 있습니다.
+`dsh web`을 재시작한 뒤 휴대폰에서 웹 프로파일을 열면: 클립은 컴포저에, 재시작 행은 설정 → 일반에, 기능 토글은 설정 → 플러그인 → dsh-mobile-upgrade에 있습니다.
 
 `dsh` 0.1.2-rc.1 이상이 필요합니다.
 
@@ -45,7 +45,7 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 ## 기능 토글
 
-위의 모든 기능은 설정 → 플러그인 → mobile-ui-fix에서 전환할 수 있습니다(다음 페이지 로드 시 적용). 또는 `localStorage` 키 — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus` — 로 기기별로 재정의할 수 있으며, 값 `"0"`은 기능을 끕니다.
+위의 모든 기능은 설정 → 플러그인 → dsh-mobile-upgrade에서 전환할 수 있습니다(다음 페이지 로드 시 적용). 또는 `localStorage` 키 — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus` — 로 기기별로 재정의할 수 있으며, 값 `"0"`은 기능을 끕니다.
 
 ## 알려진 제한
 
