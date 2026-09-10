@@ -1,7 +1,7 @@
 {
   "name": "dsh-mobile-upgrade",
-  "version": "0.5.0",
-  "description": "Mobile UI fixes for the DeepSeek Harness web profile: composer attachment upload, a restart row, input-modality switches, a narrow-screen drawer and settings tabs, a full-width model menu, a stuck-request network chip, and a throttled reaction to streaming message storms.",
+  "version": "0.6.0",
+  "description": "Mobile UI fixes for the DeepSeek Harness web profile: composer attachment upload, a restart row, input-modality switches, a narrow-screen drawer and settings tabs, a full-width model menu, a stuck-request network chip, a scrollable question region, and a throttled reaction to streaming message storms.",
   "license": "SySL-1.0",
   "type": "module",
   "main": "lib/index.js",

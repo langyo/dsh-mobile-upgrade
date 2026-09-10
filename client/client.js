@@ -29,7 +29,11 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //   7. network chip: a slot chip next to the paperclip surfaces /api/
 //      requests that hang or fail; tapping it probes the service's ping
 //      route to tell a slow route from a deadlocked host.
-//   8. storm throttle: many sessions streaming at once (or the replay
+//   8. narrow question card: the pending-question takeover's question is
+//      capped into its own scroll region, so a long question can no longer
+//      push the choices — and, on small viewports, the submit row and the
+//      minimize/close buttons — outside the card's clipped height.
+//   9. storm throttle: many sessions streaming at once (or the replay
 //      burst right after a reconnect) mutates the document per token, so
 //      the document-wide observers run at a capped leading+trailing rate,
 //      the settings poller backs off while the host is unreachable, and a
@@ -48,6 +52,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //   mfx-modality (default on) — the provider-edit input-modality switches
 //   mfx-menus    (default on) — the model menu spanning the phone width
 //   mfx-net      (default on) — the stuck-request network chip
+//   mfx-questions (default on) — the capped, scrollable question region
 // Without a localStorage override, this plugin's own settings section decides
 // the per-feature toggles (they take effect on next load).
 var namespaceFlags = null;
@@ -62,7 +67,8 @@ var NAMESPACE_FLAG_KEYS = {
 	settings: "settingsTabsEnabled",
 	modality: "modalityEnabled",
 	menus: "menusEnabled",
-	net: "netEnabled"
+	net: "netEnabled",
+	questions: "questionsEnabled"
 };
 function flag(name, dflt) {
 	try {
@@ -1038,6 +1044,101 @@ function flag(name, dflt) {
 					chip: netChip ? (netChip.isConnected ? "attached" : "detached") : "absent"
 				};
 			};
+		}
+
+		// ---------- 8. narrow question card: the question scrolls in place ----------
+		// The pending-question takeover — the card the agent's ask tool raises
+		// over the composer — keeps the question in its header (eyebrow +
+		// title) and the choices in a scrollable body below it. Only the body
+		// scrolls and the host caps the card at min(60vh, 520px) with overflow
+		// hidden, so the header is the one region with no ceiling: a question
+		// long enough to reach that cap eats the card. Measured in the live UI
+		// at 412x915 with a ~380-character question, a 441px header inside the
+		// 520px card leaves the option region 11px tall holding 324px of rows —
+		// every choice sits outside its own scrollport and cannot be tapped,
+		// which is the phone report "the question pushes the answers below".
+		// On shorter viewports the fixed parts go too: at 360x640 and 915x412
+		// the option region is 0px and the footer lands below the card and off
+		// the viewport.
+		//
+		// Below 1024px — the same boundary the drawer takeover uses, so a
+		// rotated phone is covered too — the question becomes its own capped
+		// scroll region and hands the rest of the card to the option list,
+		// which already scrolls. Both regions are then reachable: swipe the
+		// question to read it, swipe the options to pick one, with the header
+		// buttons, the pager and the submit row pinned outside both. The cap is
+		// viewport-relative to stay inside the host's own min(60vh, 520px)
+		// budget: 24vh of question leaves the remaining 36vh to the option list
+		// and the ~68px of footer and padding, which keeps the fixed parts
+		// inside the card on any viewport above ~190px tall. overscroll-behavior
+		// keeps a drag inside the region from running the conversation
+		// underneath it.
+		//
+		// A question inside the cap is untouched — no scrollbar, card still
+		// hugging its content. The option region is deliberately left alone
+		// beyond what the cap frees for it: a min-height floor there was tried
+		// and dropped, because it also inflates the card when the question is
+		// short (a 5-row question with no options grew by 50px of blank body),
+		// and the cap alone already guarantees the region its share.
+		//
+		// The region is picked out by the card's own hooks rather than by
+		// hashed class names, so a host rebuild that rehashes its CSS modules
+		// cannot silently drop this: data-question-key on the takeover frame
+		// scopes it, the question block inside is matched by class-name suffix
+		// (hash-proof) with a structural fallback
+		// (> section > header > div:first-child) for a host that renames the
+		// local class. Losing both hooks degrades to the host's behaviour, not
+		// to a broken card.
+		if (flag("questions", true)) {
+			var qstyle = document.createElement("style");
+			qstyle.id = "mfx-questions-style";
+			qstyle.textContent = [
+				"@media (max-width: 1023px) {",
+				"  [data-question-key] [class*=\"_headingBlock\"],",
+				"  [data-question-key] > section > header > div:first-child {",
+				"    max-height: min(24vh, 200px);",
+				"    overflow-y: auto;",
+				"    overscroll-behavior: contain;",
+				/* auto on one axis would make the other a scroll container too and
+				   hand a long unbroken token (a path, a hash) its own horizontal
+				   scrollbar inside the region; break it instead of clipping it,
+				   the way the card clips it today. */
+				"    overflow-x: hidden;",
+				"    overflow-wrap: anywhere;",
+				"  }",
+				"}"
+			].join("\n");
+			document.head.appendChild(qstyle);
+
+			// A batch of questions is one card: the pager swaps the question
+			// text into the very same nodes, so the browser keeps the region's
+			// scroll offset and paging from one long question to the next lands
+			// mid-question — a defect the cap itself introduces, since the
+			// region only became scrollable here. Reset the offset when the
+			// question text actually changes (and only then: re-renders during
+			// streaming must not yank a region the user is reading). The
+			// observer is the same throttled leading+trailing pass the drawer
+			// and menu hooks use, so a token flood costs at most five runs a
+			// second of two lookups and a string compare.
+			var qText = null;
+			var syncQuestionScroll = function () {
+				try {
+					var card = document.querySelector("[data-question-key]");
+					if (!card) { qText = null; return; }
+					var heading = card.querySelector("[class*=\"_headingBlock\"]");
+					if (!heading) return;
+					var text = (heading.querySelector("h2") || heading).textContent;
+					if (text === qText) return;
+					qText = text;
+					heading.scrollTop = 0;
+				} catch (e) {}
+			};
+			var syncQuestionScrollThrottled = mfxThrottle(syncQuestionScroll, 200);
+			try {
+				new MutationObserver(syncQuestionScrollThrottled).observe(document.documentElement,
+					{ subtree: true, childList: true, characterData: true });
+			} catch (e) {}
+			syncQuestionScroll();
 		}
 	}
 	return { name: PLUGIN_ID, inject: inject, apply: apply };

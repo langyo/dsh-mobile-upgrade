@@ -12,6 +12,7 @@ Mobilfreundliche Verbesserungen für das Web-Profil von [DeepSeek Harness](https
 - **Drawer für schmale Bildschirme** — unter 1024px schrumpft die Seitenleiste zu einem kleinen Eck-Chip, der den eigenen Umschalter des Hosts behält; ausgeklappt schwebt die volle Seitenleiste als Drawer über dem Inhalt in voller Breite, und die Wahl einer Sitzung schließt ihn wieder.
 - **Einstellungen als Tabs auf schmalen Bildschirmen** — unter 700px wird die Seitennavigation des Einstellungsdialogs zu einer horizontal scrollbaren Tab-Leiste.
 - **Modellmenü in voller Bildschirmbreite** — unter 700px wird das Modellmenü des Composers genau auf die Telefonbreite (12px Ränder) verankert, statt vom Bildschirmrand abgeschnitten zu werden; die vertikale Platzierung über dem Auslöser übernimmt weiterhin der Host.
+- **Scrollbare Fragekarte** — unter 1024px kann eine offene Frage ihre eigenen Optionen nicht mehr aus dem Bild drängen: Die Frage bekommt einen eigenen, höhenbegrenzten Scrollbereich, sodass eine lange Frage an Ort und Stelle scrollt, während die Optionsliste darunter den verbleibenden Platz behält und die Optionen, die Sendezeile und die Schaltflächen zum Minimieren und Schließen auf dem Bildschirm bleiben und erreichbar sind. Eine kurze Frage bleibt unangetastet, und die Karte umschließt weiterhin ihren Inhalt.
 - **Ablösung des Detail-Overlays** — das Vollbild-Overlay der Werkzeugdetails, dessen Schließen-Steuerung im aktuellen Host wirkungslos ist, wird auf schmalen Bildschirmen gar nicht gerendert und kann den Chat daher nicht blockieren.
 - **Schalter pro Funktion** — das Plugin installiert einen Abschnitt `dsh-mobile-upgrade` unter Einstellungen → Plugins mit einem Schalter pro Funktion.
 
@@ -45,11 +46,11 @@ Die Einstellungskarte des Plugins nimmt:
 
 ## Funktionsschalter
 
-Jede der obigen Funktionen lässt sich unter Einstellungen → Plugins → dsh-mobile-upgrade umschalten (wirksam beim nächsten Laden der Seite) oder pro Gerät mit einem `localStorage`-Schlüssel überschreiben — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus` — wobei der Wert `"0"` die Funktion ausschaltet.
+Jede der obigen Funktionen lässt sich unter Einstellungen → Plugins → dsh-mobile-upgrade umschalten (wirksam beim nächsten Laden der Seite) oder pro Gerät mit einem `localStorage`-Schlüssel überschreiben — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus`, `mfx-questions` — wobei der Wert `"0"` die Funktion ausschaltet.
 
 ## Bekannte Einschränkungen
 
-- Der Client hängt sich über gehashte CSS-Klassennamen an bestimmte Elemente der Host-Oberfläche (Menü, Drawer-Umschalter, Provider-Editor). Benennt ein Host-Build diese um, degradieren die betroffenen Funktionen, bis dieses Plugin nachzieht; alles andere funktioniert weiter.
+- Der Client hängt sich über gehashte CSS-Klassennamen an bestimmte Elemente der Host-Oberfläche (Menü, Drawer-Umschalter, Provider-Editor). Benennt ein Host-Build diese um, degradieren die betroffenen Funktionen, bis dieses Plugin nachzieht; alles andere funktioniert weiter. Der Fragebereich der Fragekarte wird stattdessen über deren eigenen Hook `data-question-key` gefunden, sodass er auch dann weiter funktioniert, wenn ein Host-Neubau lediglich seine CSS-Module neu hasht.
 - Eingabemodalitäts-Schalter können nur Provider-Routen patchen, die Sie selbst angepasst haben; reine Katalogrouten sind absichtlich nur lesend, weil eine erfundene Katalogsektion das Modellverzeichnis zum Einsturz bringt.
 
 ## Sicherheitshinweise
