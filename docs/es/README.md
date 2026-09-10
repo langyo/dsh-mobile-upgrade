@@ -13,7 +13,7 @@ Mejoras de calidad de vida para móviles en el perfil web de [DeepSeek Harness](
 - **Pestañas de ajustes en pantallas estrechas** — por debajo de 700px la navegación lateral del diálogo de ajustes se convierte en una fila de pestañas con desplazamiento horizontal.
 - **Menú de modelos a ancho completo** — por debajo de 700px el menú de modelos del compositor se re-ancla justo al ancho del teléfono (márgenes de 12px) en lugar de quedar fuera de la pantalla; el host sigue controlando la colocación vertical sobre el disparador.
 - **Alternativa al panel de detalles** — el panel de herramientas a pantalla completa cuyo control de cierre no responde en el host actual no se renderiza en pantallas estrechas, de modo que no puede bloquear el chat.
-- **Interruptores por función** — el plugin instala una sección `mobile-ui-fix` en Ajustes → Plugins con un interruptor por función.
+- **Interruptores por función** — el plugin instala una sección `dsh-mobile-upgrade` en Ajustes → Plugins con un interruptor por función.
 
 ## Capturas de pantalla
 
@@ -30,7 +30,7 @@ El chip flotante, el cajón de sesiones, las pestañas de ajustes en pantallas e
 dsh plugin --profile web add dsh-mobile-upgrade
 ```
 
-Reinicie `dsh web` y abra el perfil web en su teléfono: el clip aparece en el compositor, la fila de reinicio en Ajustes → General y los interruptores en Ajustes → Plugins → mobile-ui-fix.
+Reinicie `dsh web` y abra el perfil web en su teléfono: el clip aparece en el compositor, la fila de reinicio en Ajustes → General y los interruptores en Ajustes → Plugins → dsh-mobile-upgrade.
 
 Requiere `dsh` 0.1.2-rc.1 o posterior.
 
@@ -45,7 +45,7 @@ La tarjeta de ajustes del plugin admite:
 
 ## Interruptores por función
 
-Cada función anterior puede activarse o desactivarse en Ajustes → Plugins → mobile-ui-fix (surte efecto en la siguiente carga de la página), o anularse por dispositivo con una clave de `localStorage` — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus` — donde el valor `"0"` desactiva la función.
+Cada función anterior puede activarse o desactivarse en Ajustes → Plugins → dsh-mobile-upgrade (surte efecto en la siguiente carga de la página), o anularse por dispositivo con una clave de `localStorage` — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus` — donde el valor `"0"` desactiva la función.
 
 ## Limitaciones conocidas
 

@@ -13,7 +13,7 @@ Mobilfreundliche Verbesserungen für das Web-Profil von [DeepSeek Harness](https
 - **Einstellungen als Tabs auf schmalen Bildschirmen** — unter 700px wird die Seitennavigation des Einstellungsdialogs zu einer horizontal scrollbaren Tab-Leiste.
 - **Modellmenü in voller Bildschirmbreite** — unter 700px wird das Modellmenü des Composers genau auf die Telefonbreite (12px Ränder) verankert, statt vom Bildschirmrand abgeschnitten zu werden; die vertikale Platzierung über dem Auslöser übernimmt weiterhin der Host.
 - **Ablösung des Detail-Overlays** — das Vollbild-Overlay der Werkzeugdetails, dessen Schließen-Steuerung im aktuellen Host wirkungslos ist, wird auf schmalen Bildschirmen gar nicht gerendert und kann den Chat daher nicht blockieren.
-- **Schalter pro Funktion** — das Plugin installiert einen Abschnitt `mobile-ui-fix` unter Einstellungen → Plugins mit einem Schalter pro Funktion.
+- **Schalter pro Funktion** — das Plugin installiert einen Abschnitt `dsh-mobile-upgrade` unter Einstellungen → Plugins mit einem Schalter pro Funktion.
 
 ## Screenshots
 
@@ -30,7 +30,7 @@ Schwebender Chip, Session-Drawer, Einstellungs-Tabs auf schmalen Bildschirmen un
 dsh plugin --profile web add dsh-mobile-upgrade
 ```
 
-Starten Sie `dsh web` neu und öffnen Sie das Web-Profil auf dem Telefon: Die Büroklammer sitzt im Composer, die Neustart-Zeile unter Einstellungen → Allgemein und die Funktionsschalter unter Einstellungen → Plugins → mobile-ui-fix.
+Starten Sie `dsh web` neu und öffnen Sie das Web-Profil auf dem Telefon: Die Büroklammer sitzt im Composer, die Neustart-Zeile unter Einstellungen → Allgemein und die Funktionsschalter unter Einstellungen → Plugins → dsh-mobile-upgrade.
 
 Erfordert `dsh` 0.1.2-rc.1 oder neuer.
 
@@ -45,7 +45,7 @@ Die Einstellungskarte des Plugins nimmt:
 
 ## Funktionsschalter
 
-Jede der obigen Funktionen lässt sich unter Einstellungen → Plugins → mobile-ui-fix umschalten (wirksam beim nächsten Laden der Seite) oder pro Gerät mit einem `localStorage`-Schlüssel überschreiben — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus` — wobei der Wert `"0"` die Funktion ausschaltet.
+Jede der obigen Funktionen lässt sich unter Einstellungen → Plugins → dsh-mobile-upgrade umschalten (wirksam beim nächsten Laden der Seite) oder pro Gerät mit einem `localStorage`-Schlüssel überschreiben — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus` — wobei der Wert `"0"` die Funktion ausschaltet.
 
 ## Bekannte Einschränkungen
 

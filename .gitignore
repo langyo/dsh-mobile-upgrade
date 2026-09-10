@@ -1,0 +1,5 @@
+# Nothing here is published (npm publishes `files`, which is explicit), this
+# only keeps a working checkout clean.
+node_modules/
+*.tgz
+.DS_Store

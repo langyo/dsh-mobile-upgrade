@@ -14,7 +14,7 @@ Mobile quality-of-life fixes for the [DeepSeek Harness](https://github.com/deeps
 - **Full-width model menu** — below 700px the composer's model menu re-anchors to exactly the phone width (12px margins) instead of landing past the screen edge, while the host keeps owning the vertical placement above the trigger.
 - **Details-overlay settle** — the fullscreen tool-details overlay whose close control is inert in the current host is not rendered on narrow screens, so it cannot trap the chat.
 - **Storm-safe reactivity** — the drawer/menu observers and the settings poller react to a burst of streaming messages at a capped rate and back off while the host is unreachable, a rail remount during a reconnect keeps the drawer state instead of flapping it, and drawer close taps retry through a remount instead of landing on a stale toggle: many sessions streaming at once no longer freeze input or twitch the sidebar into unclickability, whether it is open or closed.
-- **Per-feature toggles** — the plugin installs a `mobile-ui-fix` section in Settings → Plugins with a switch per feature.
+- **Per-feature toggles** — the plugin installs a `dsh-mobile-upgrade` section in Settings → Plugins with a switch per feature.
 
 ## Screenshots
 
@@ -31,7 +31,7 @@ The floating chip, the session drawer, the narrow-screen settings tabs and the c
 dsh plugin --profile web add dsh-mobile-upgrade
 ```
 
-Restart `dsh web`, then open the web profile on your phone: the paperclip sits in the composer, the restart row in Settings → General, and the feature toggles in Settings → Plugins → mobile-ui-fix.
+Restart `dsh web`, then open the web profile on your phone: the paperclip sits in the composer, the restart row in Settings → General, and the feature toggles in Settings → Plugins → dsh-mobile-upgrade.
 
 Requires `dsh` 0.1.2-rc.1 or newer.
 
@@ -46,7 +46,7 @@ The plugin's settings card takes:
 
 ## Feature toggles
 
-Every feature above can be switched in Settings → Plugins → mobile-ui-fix (effective on the next page load), or overridden per device with a `localStorage` key — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus`, `mfx-net` — where the value `"0"` turns a feature off.
+Every feature above can be switched in Settings → Plugins → dsh-mobile-upgrade (effective on the next page load), or overridden per device with a `localStorage` key — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus`, `mfx-net` — where the value `"0"` turns a feature off.
 
 ## Limitations
 
