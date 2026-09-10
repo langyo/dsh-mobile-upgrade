@@ -12,6 +12,7 @@ Mejoras de calidad de vida para móviles en el perfil web de [DeepSeek Harness](
 - **Cajón para pantallas estrechas** — por debajo de 1024px la barra lateral se reduce a un pequeño chip en la esquina que conserva el toggle del propio host; al expandirla, la barra completa flota como un cajón sobre el contenido a ancho completo, y al elegir una sesión vuelve a cerrarse.
 - **Pestañas de ajustes en pantallas estrechas** — por debajo de 700px la navegación lateral del diálogo de ajustes se convierte en una fila de pestañas con desplazamiento horizontal.
 - **Menú de modelos a ancho completo** — por debajo de 700px el menú de modelos del compositor se re-ancla justo al ancho del teléfono (márgenes de 12px) en lugar de quedar fuera de la pantalla; el host sigue controlando la colocación vertical sobre el disparador.
+- **Tarjeta de pregunta desplazable** — por debajo de 1024px una pregunta pendiente ya no puede enterrar sus propias opciones: la pregunta queda acotada a su propia región desplazable, de modo que una pregunta larga se desplaza dentro de esa región mientras la lista de opciones de abajo se queda con el espacio que quede y las opciones, la fila de envío y los botones de minimizar y cerrar permanecen en pantalla y accesibles. Una pregunta corta no se ve afectada, y la tarjeta sigue ajustándose a su contenido.
 - **Alternativa al panel de detalles** — el panel de herramientas a pantalla completa cuyo control de cierre no responde en el host actual no se renderiza en pantallas estrechas, de modo que no puede bloquear el chat.
 - **Interruptores por función** — el plugin instala una sección `dsh-mobile-upgrade` en Ajustes → Plugins con un interruptor por función.
 
@@ -45,11 +46,11 @@ La tarjeta de ajustes del plugin admite:
 
 ## Interruptores por función
 
-Cada función anterior puede activarse o desactivarse en Ajustes → Plugins → dsh-mobile-upgrade (surte efecto en la siguiente carga de la página), o anularse por dispositivo con una clave de `localStorage` — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus` — donde el valor `"0"` desactiva la función.
+Cada función anterior puede activarse o desactivarse en Ajustes → Plugins → dsh-mobile-upgrade (surte efecto en la siguiente carga de la página), o anularse por dispositivo con una clave de `localStorage` — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus`, `mfx-questions` — donde el valor `"0"` desactiva la función.
 
 ## Limitaciones conocidas
 
-- El cliente se engancha a elementos concretos de la interfaz del host por sus nombres de clase CSS hash (menú, toggle del cajón, editor de proveedores). Si una build del host los renombra, las funciones afectadas se degradan hasta que este plugin se actualice; todo lo demás sigue funcionando.
+- El cliente se engancha a elementos concretos de la interfaz del host por sus nombres de clase CSS hash (menú, toggle del cajón, editor de proveedores). Si una build del host los renombra, las funciones afectadas se degradan hasta que este plugin se actualice; todo lo demás sigue funcionando. La región de la tarjeta de pregunta se localiza en cambio a través del propio gancho `data-question-key` de la tarjeta, de modo que una build del host que solo rehaga el hash de sus módulos CSS la mantiene funcionando.
 - Los interruptores de modalidad de entrada solo pueden modificar rutas de proveedores que usted haya personalizado; las rutas de solo catálogo son de solo lectura por diseño, porque fabricar una sección de catálogo colapsa el directorio de modelos.
 
 ## Notas de seguridad

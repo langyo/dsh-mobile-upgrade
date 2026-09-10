@@ -12,6 +12,7 @@ Mobile quality-of-life fixes for the [DeepSeek Harness](https://github.com/deeps
 - **Narrow-screen drawer** — below 1024px the sidebar collapses to a small corner chip that keeps the host's own toggle; expanding it floats the full sidebar as a drawer over full-width content, and picking a session closes it again.
 - **Narrow settings tabs** — below 700px the settings dialog's side navigation becomes a row of horizontally scrollable tabs.
 - **Full-width model menu** — below 700px the composer's model menu re-anchors to exactly the phone width (12px margins) instead of landing past the screen edge, while the host keeps owning the vertical placement above the trigger.
+- **Scrollable question card** — below 1024px a pending question can no longer bury its own choices: the question is capped into its own scroll region, so a long question scrolls in place while the option list below keeps whatever room is left and the options, the submit row and the minimize/close buttons stay on screen and reachable. A short question is untouched, and the card still hugs its content.
 - **Details-overlay settle** — the fullscreen tool-details overlay whose close control is inert in the current host is not rendered on narrow screens, so it cannot trap the chat.
 - **Storm-safe reactivity** — the drawer/menu observers and the settings poller react to a burst of streaming messages at a capped rate and back off while the host is unreachable, a rail remount during a reconnect keeps the drawer state instead of flapping it, and drawer close taps retry through a remount instead of landing on a stale toggle: many sessions streaming at once no longer freeze input or twitch the sidebar into unclickability, whether it is open or closed.
 - **Per-feature toggles** — the plugin installs a `dsh-mobile-upgrade` section in Settings → Plugins with a switch per feature.
@@ -46,11 +47,11 @@ The plugin's settings card takes:
 
 ## Feature toggles
 
-Every feature above can be switched in Settings → Plugins → dsh-mobile-upgrade (effective on the next page load), or overridden per device with a `localStorage` key — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus`, `mfx-net` — where the value `"0"` turns a feature off.
+Every feature above can be switched in Settings → Plugins → dsh-mobile-upgrade (effective on the next page load), or overridden per device with a `localStorage` key — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus`, `mfx-net`, `mfx-questions` — where the value `"0"` turns a feature off.
 
 ## Limitations
 
-- The client hooks specific host UI elements by their hashed CSS class names (menu, drawer toggle, provider editor). A host build that renames them degrades individual features until this plugin catches up; everything else keeps working.
+- The client hooks specific host UI elements by their hashed CSS class names (menu, drawer toggle, provider editor). A host build that renames them degrades individual features until this plugin catches up; everything else keeps working. The question card's question region is found through the card's own `data-question-key` hook instead, so a host rebuild that merely rehashes its CSS modules keeps it working.
 - Input-modality switches can only patch provider routes you have customised yourself; catalog-only routes are read-only by design, because fabricating a catalog section collapses the model directory.
 
 ## Security notes

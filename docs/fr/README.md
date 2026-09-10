@@ -12,6 +12,7 @@ Améliorations mobiles pour le profil web de [DeepSeek Harness](https://github.c
 - **Tiroir pour écrans étroits** — en dessous de 1024px, la barre latérale se réduit en une petite pastille d'angle qui conserve le bouton de l'hôte ; dépliée, la barre complète flotte en tiroir au-dessus du contenu pleine largeur, et choisir une session la referme.
 - **Onglets de paramètres sur écran étroit** — en dessous de 700px, la navigation latérale du dialogue de paramètres devient une rangée d'onglets à défilement horizontal.
 - **Menu de modèles pleine largeur** — en dessous de 700px, le menu de modèles du composer se ré-ancre exactement à la largeur du téléphone (marges de 12px) au lieu de sortir de l'écran ; le placement vertical au-dessus du déclencheur reste géré par l'hôte.
+- **Carte de question défilable** — en dessous de 1024px, une question en attente ne peut plus enterrer ses propres choix : la question est plafonnée en hauteur dans sa propre zone de défilement, de sorte qu'une question longue défile sur place tandis que la liste d'options en dessous conserve la place qui reste et que les options, la rangée d'envoi et les boutons de réduction et de fermeture restent à l'écran et accessibles. Une question courte reste intacte, et la carte épouse toujours son contenu.
 - **Contournement du panneau de détails** — le panneau d'outils plein écran dont le bouton de fermeture est inerte dans l'hôte actuel n'est pas rendu sur les écrans étroits, il ne peut donc pas bloquer la conversation.
 - **Commutateurs par fonction** — le plugin installe une section `dsh-mobile-upgrade` dans Paramètres → Plugins avec un interrupteur par fonction.
 
@@ -45,11 +46,11 @@ La carte de paramètres du plugin accepte :
 
 ## Commutateurs par fonction
 
-Chaque fonction ci-dessus peut être activée ou désactivée dans Paramètres → Plugins → dsh-mobile-upgrade (effectif au prochain chargement de la page), ou remplacée par appareil avec une clé `localStorage` — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus` — dont la valeur `"0"` désactive la fonction.
+Chaque fonction ci-dessus peut être activée ou désactivée dans Paramètres → Plugins → dsh-mobile-upgrade (effectif au prochain chargement de la page), ou remplacée par appareil avec une clé `localStorage` — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus`, `mfx-questions` — dont la valeur `"0"` désactive la fonction.
 
 ## Limitations connues
 
-- Le client s'accroche à des éléments précis de l'interface de l'hôte via leurs noms de classes CSS hachées (menu, bouton du tiroir, éditeur de fournisseur). Si une build de l'hôte les renomme, les fonctions concernées se dégradent jusqu'à ce que ce plugin suive ; tout le reste continue de fonctionner.
+- Le client s'accroche à des éléments précis de l'interface de l'hôte via leurs noms de classes CSS hachées (menu, bouton du tiroir, éditeur de fournisseur). Si une build de l'hôte les renomme, les fonctions concernées se dégradent jusqu'à ce que ce plugin suive ; tout le reste continue de fonctionner. La région de la carte de question est en revanche repérée via le point d'accroche `data-question-key` propre à la carte, de sorte qu'une build de l'hôte qui se contente de recalculer le hachage de ses modules CSS la maintient fonctionnelle.
 - Les commutateurs de modalité d'entrée ne peuvent modifier que les routes de fournisseurs que vous avez personnalisées ; les routes de catalogue seul sont en lecture seule par conception, car fabriquer une section de catalogue fait s'effondrer le répertoire de modèles.
 
 ## Notes de sécurité
