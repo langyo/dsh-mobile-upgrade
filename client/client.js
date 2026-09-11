@@ -11,7 +11,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	// The build this bundle is. Kept in step with package.json by
 	// scripts/check-manifest.mjs, and surfaced in the settings row plus the
 	// self-update banner below so a device can always say what it runs.
-	var BUILD = "0.6.7";
+	var BUILD = "0.6.8";
 
 	// Everything this plugin renders lives inside native host slots — no
 	// fixed-position body elements, no CSS overrides, no DOM polling.
@@ -639,25 +639,6 @@ function flag(name, dflt) {
 				"    border-radius: 0 !important; box-shadow: 0 0 44px rgba(0,0,0,.4);",
 				"    background: none !important; -webkit-backdrop-filter: none; backdrop-filter: none; }",
 				"  html.mfx-drawer-open.mfx-chip-right [class*=\"pI_x6G_sidebarCol\"] { left: auto !important; right: 0 !important; }",
-				/* Closing is ours the moment the user asks for it (see
-				   collapseDrawer), but the host's commit — the class that turns
-				   the rail back into a chip — is a React re-render that can take
-				   seconds on a loaded phone. Until it lands the closed chip would
-				   hold the still-expanded rail: a 56px crop of the sidebar's top
-				   left corner with the whale far outside it. This state paints
-				   the collapsed rail's own look, exactly as the rules above do
-				   once the host catches up. */
-				"  html.mfx-chip-closing [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_root\"]",
-				"  { height: auto !important; min-height: 0 !important; padding: 0 !important; }",
-				"  html.mfx-chip-closing [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_toggle\"]",
-				"  { position: absolute !important; inset: 0 !important; width: 100% !important;",
-				"    height: 100% !important; display: grid !important; place-items: center !important;",
-				"    margin: 0 !important; padding: 0 !important; }",
-				"  html.mfx-chip-closing [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_newSession\"],",
-				"  html.mfx-chip-closing [class*=\"pI_x6G_sidebarCol\"] [class*=\"bhn1Oq_iconButton\"],",
-				"  html.mfx-chip-closing [class*=\"pI_x6G_sidebarCol\"] [class*=\"bhn1Oq_searchButton\"],",
-				"  html.mfx-chip-closing [class*=\"pI_x6G_sidebarCol\"] [data-slot=\"sidebar.footer.action\"],",
-				"  html.mfx-chip-closing [class*=\"pI_x6G_sidebarCol\"] [class*=\"VOzbGW_railRow\"] { display: none !important; }",
 				"  html.mfx-drawer-open #mfx-scrim { display: block; }",
 				"}"
 			].join("\n");
@@ -817,8 +798,7 @@ function flag(name, dflt) {
 			var RAIL_GRACE_MS = 600;
 			var initialized = false;
 			var drawerStart = Date.now();
-			var openingUntil = 0;
-			var closingUntil = 0;
+			var pendingOpen = false;
 			var hostAskedOnce = false;
 			function railRoot() {
 				try { return document.querySelector('[class*="hHd-Xa_root"]'); } catch (e) { return null; }
@@ -831,14 +811,15 @@ function flag(name, dflt) {
 			function setDrawer(open) {
 				drawerOpen = open;
 				document.documentElement.classList.toggle("mfx-drawer-open", open);
-				if (open) document.documentElement.classList.remove("mfx-chip-closing");
+				if (open) pendingOpen = false;
 			}
-			// The chip paints the host's collapsed rail's own look while the host
-			// has not collapsed yet: the closed chip would otherwise hold a 56px
-			// crop of the still-expanded sidebar, with the whale outside it.
-			function chipLook(collapsed) {
-				document.documentElement.classList.toggle("mfx-chip-closing", collapsed);
-			}
+			// No rescue look any more. An earlier version painted the collapsed
+			// rail's own look inside the chip while the host caught up; the rules
+			// it needed (pin the whale, drop the rail's chrome) turned the whole
+			// takeover into one giant stretched whale whenever the host was slow
+			// to answer, and it could sit there for as long as the host took —
+			// the frozen panel in the phone screenshot. A chip showing a 56px
+			// crop for a few hundred ms is a far smaller price.
 			function observeDrawer() {
 				var rail = railRoot();
 				if (rail) railLastSeen = Date.now();
@@ -852,40 +833,34 @@ function flag(name, dflt) {
 					}
 					initialized = true;
 					setDrawer(collapsed === false);
-					chipLook(false);
-					return;
-				}
-				// Only the chip's rescue look follows the host now: once the rail
-				// really is collapsed, the chip stops pretending.
-				if (!drawerOpen && collapsed === true) chipLook(false);
-				if (!drawerOpen && collapsed === false && Date.now() < openingUntil) {
-					// the whale was tapped: this is the host's own open landing
-					setDrawer(true);
 					return;
 				}
 				if (!drawerOpen && collapsed === true && hostAskedOnce) hostAskedOnce = false;
-				if (!drawerOpen && collapsed === false && Date.now() > closingUntil) {
-					// the host is open under a closed takeover: harmless (the chip
-					// clips it), and it must NOT reopen the takeover
-					chipLook(false);
+				if (!drawerOpen && pendingOpen && collapsed === false) {
+					// the whale was tapped and the host has now laid its rail out:
+					// this is that open landing, whenever it arrives. No time
+					// window — a busy phone can take seconds, and a window that
+					// expired first left the drawer shut with no way to tell.
+					setDrawer(true);
+					return;
 				}
+				// The host sitting open under a closed takeover is harmless (the
+				// chip clips it) and must NOT reopen the takeover.
 			}
 			// Closing is ours: the geometry moves in the tap's own task, the chip
 			// gets the collapsed rail's look while the host catches up, and the
 			// host's own toggle is clicked at most once per close gesture — never
 			// on a timer, never twice, so it can never toggle the host back.
 			function collapseDrawer(hostAlreadyToggling) {
+				pendingOpen = false;
 				setDrawer(false);
-				closingUntil = Date.now() + 3000;
-				chipLook(true);
 				if (railCollapsed() === false && !hostAskedOnce) {
 					hostAskedOnce = true;
 					var delay = hostAlreadyToggling ? 600 : 250;
 					setTimeout(function () {
-						if (railCollapsed() !== false) { chipLook(false); return; }
+						if (railCollapsed() !== false) return;
 						var t = document.querySelector('[class*="hHd-Xa_toggle"]');
 						if (t) t.click();
-						setTimeout(function () { if (railCollapsed() === true) chipLook(false); }, 1200);
 					}, delay);
 				}
 			}
@@ -939,12 +914,13 @@ function flag(name, dflt) {
 						if (drawerOpen) {
 							collapseDrawer(true);
 						} else {
-							openingUntil = Date.now() + 2500;
 							// The host flips its rail on this same click; the
 							// geometry waits for that commit so the panel never
 							// opens over a rail that is still the chip. Its class
-							// watch calls back within a frame.
-							document.documentElement.classList.add("mfx-chip-closing");
+							// watch calls back within a frame — or seconds later,
+							// if the phone is busy with streaming sessions, and
+							// that is fine: the open lands whenever it lands.
+							pendingOpen = true;
 						}
 						return;
 					}
