@@ -8,6 +8,11 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	var PLUGIN_ID = "dsh-mobile-upgrade";
 	var ROUTE_PREFIX = "/plugins/" + PLUGIN_ID;
 
+	// The build this bundle is. Kept in step with package.json by
+	// scripts/check-manifest.mjs, and surfaced in the settings row plus the
+	// self-update banner below so a device can always say what it runs.
+	var BUILD = "0.6.6";
+
 	// Everything this plugin renders lives inside native host slots — no
 	// fixed-position body elements, no CSS overrides, no DOM polling.
 	//
@@ -36,7 +41,11 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //      capped into its own scroll region, so a long question can no longer
 //      push the choices — and, on small viewports, the submit row and the
 //      minimize/close buttons — outside the card's clipped height.
-//   9. storm throttle: many sessions streaming at once (or the replay
+//   9. self-update: a phone tab can sit on a cached page for days, and the
+//      bundle is served immutable per revision, so the page compares the
+//      revision it booted with against the one the server advertises now and
+//      reloads itself (idle, or through a banner it can tap).
+//  10. storm throttle: many sessions streaming at once (or the replay
 //      burst right after a reconnect) mutates the document per token, so
 //      the document-wide observers run at a capped leading+trailing rate,
 //      the settings poller backs off while the host is unreachable, and a
@@ -58,6 +67,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //   mfx-menus    (default on) — the model menu spanning the phone width
 //   mfx-net      (default on) — the stuck-request network chip
 //   mfx-questions (default on) — the capped, scrollable question region
+//   mfx-selfupdate (default on) — reload the page when the plugin is upgraded
 // Without a localStorage override, this plugin's own settings section decides
 // the per-feature toggles (they take effect on next load).
 var namespaceFlags = null;
@@ -73,7 +83,8 @@ var NAMESPACE_FLAG_KEYS = {
 	modality: "modalityEnabled",
 	menus: "menusEnabled",
 	net: "netEnabled",
-	questions: "questionsEnabled"
+	questions: "questionsEnabled",
+	selfupdate: "selfUpdateEnabled"
 };
 function flag(name, dflt) {
 	try {
@@ -326,7 +337,8 @@ function flag(name, dflt) {
 		if (flag("restart", true)) {
 			function restartLabel() {
 				try {
-					return (navigator.language || "en").toLowerCase().indexOf("zh") === 0 ? "重启服务" : "Restart service";
+					var base = (navigator.language || "en").toLowerCase().indexOf("zh") === 0 ? "重启服务" : "Restart service";
+					return base + " · v" + BUILD;
 				} catch (e) { return "Restart service"; }
 			}
 			function restartConfirm() {
@@ -824,6 +836,9 @@ function flag(name, dflt) {
 			var INTENT_GRACE_MS = 4000;
 			var railSeen = null;
 			var railSince = 0;
+			// How many times this takeover has put the host's rail back after the
+			// host dropped it on its own (see the mirror below).
+			var railHoldCount = 0;
 			var intent = null;
 			var intentUntil = 0;
 			// Which chase owns the host's toggle right now (see collapseDrawer):
@@ -841,6 +856,7 @@ function flag(name, dflt) {
 				return String(rail.className).indexOf("hHd-Xa_collapsed") !== -1 ? "collapsed" : "expanded";
 			}
 			function setDrawer(open) {
+				if (open !== drawerOpen) railHoldCount = 0;
 				drawerOpen = open;
 				document.documentElement.classList.toggle("mfx-drawer-open", open);
 				// opening retires the closed chip's rescue look: the rail is the
@@ -901,6 +917,22 @@ function flag(name, dflt) {
 					return;
 				}
 				if (Date.now() - railSince < RAIL_SETTLE_MS) return;
+				// The host drops its rail for reasons of its own on a phone — the
+				// keyboard opening over the search box, an inner dialog taking
+				// the width — and obeying that closed the takeover out from under
+				// whoever was working in it, which reads as "every tap closes the
+				// sidebar". A collapse nobody asked for is put back instead (the
+				// host's own toggle, once per sighting); if it keeps collapsing,
+				// the host wins and the takeover closes, as before.
+				if (!open && drawerOpen === true && intent === null && railHoldCount < 3) {
+					var holdToggle = document.querySelector('[class*="hHd-Xa_toggle"]');
+					if (holdToggle) {
+						railHoldCount++;
+						railSeen = state;
+						holdToggle.click();
+						return;
+					}
+				}
 				setDrawer(open);
 			}
 			// Collapse the takeover now. The geometry must not wait for the
@@ -1042,6 +1074,80 @@ function flag(name, dflt) {
 					if (onScrim || picksSession) collapseDrawer(false);
 				} catch (e) {}
 			}, true);
+		}
+
+		// ---------- 9. self-update: a phone tab must not run yesterday's bundle ----------
+		// The client bundle is served immutable per revision, so a page loaded
+		// before an upgrade keeps running the old code until the page itself is
+		// reloaded — on a phone, where a tab can sit in the background for days,
+		// that is how a fix appears "not to work" while nobody is running it.
+		// The boot manifest already records the revision this page booted with,
+		// so the page can compare it against the revision the server publishes
+		// now (fetched with no-store, or the cached HTML would answer) and get
+		// itself onto the new build: silently once the page has been idle and
+		// is not holding a half-typed draft, otherwise through a banner that
+		// reloads on a tap.
+		if (flag("selfupdate", true)) {
+			var bootRev = null;
+			try {
+				var bootEntries = (window.__DSH_BOOT__ && window.__DSH_BOOT__.entries) || [];
+				for (var be = 0; be < bootEntries.length; be++) {
+					if (bootEntries[be] && bootEntries[be].id === PLUGIN_ID) bootRev = bootEntries[be].rev || null;
+				}
+			} catch (e) {}
+			if (bootRev) {
+				var lastTouch = Date.now();
+				var noteTouch = function () { lastTouch = Date.now(); };
+				document.addEventListener("pointerdown", noteTouch, true);
+				document.addEventListener("keydown", noteTouch, true);
+				var banner = null;
+				var bannerShown = false;
+				var reloading = false;
+				var offerReload = function () {
+					if (bannerShown) return;
+					bannerShown = true;
+					banner = document.createElement("button");
+					banner.type = "button";
+					banner.id = "mfx-update-banner";
+					banner.textContent = "插件已更新到 v" + BUILD + " · 点此刷新";
+					banner.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);bottom:96px;" +
+						"z-index:200;max-width:88vw;padding:10px 16px;border:none;border-radius:12px;" +
+						"font-size:13px;line-height:18px;color:#fff;background:#3355dd;" +
+						"box-shadow:0 6px 20px rgba(0,0,0,.35);cursor:pointer";
+					banner.addEventListener("click", function () { reloading = true; location.reload(); });
+					document.body.appendChild(banner);
+				};
+				var checkBuild = function () {
+					if (reloading) return;
+					var timer = setTimeout(function () { reloading = true; }, 8000);
+					fetch("/", { cache: "no-store", credentials: "same-origin" }).then(function (r) {
+						clearTimeout(timer);
+						return r.ok ? r.text() : "";
+					}).then(function (html) {
+						if (!html || reloading) return;
+						var m = new RegExp('"id"\\s*:\\s*"' + PLUGIN_ID + '"[^}]*?"rev"\\s*:\\s*"([^"]+)"').exec(html);
+						if (!m || m[1] === bootRev) return;
+						// a newer build is published: take it now if the page is
+						// quiet, otherwise offer it — a reload must never eat a
+						// draft someone is typing
+						var idle = Date.now() - lastTouch > 45000;
+						var el = document.activeElement;
+						var typing = !!el && (/^(INPUT|TEXTAREA)$/.test(el.tagName)
+							|| el.isContentEditable === true);
+						if (idle && !typing && !document.hidden) {
+							reloading = true;
+							location.reload();
+							return;
+						}
+						offerReload();
+					}).catch(function () { clearTimeout(timer); });
+				};
+				setTimeout(checkBuild, 15000);
+				setInterval(checkBuild, 120000);
+				document.addEventListener("visibilitychange", function () {
+					if (!document.hidden) setTimeout(checkBuild, 1500);
+				});
+			}
 		}
 
 		// ---------- 5. settings dialog: the side nav becomes top tabs on narrow screens ----------

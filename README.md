@@ -15,6 +15,7 @@ Mobile quality-of-life fixes for the [DeepSeek Harness](https://github.com/deeps
 - **Scrollable question card** — below 1024px a pending question can no longer bury its own choices: the question is capped into its own scroll region, so a long question scrolls in place while the option list below keeps whatever room is left and the options, the submit row and the minimize/close buttons stay on screen and reachable. A short question is untouched, and the card still hugs its content.
 - **Details-overlay settle** — the fullscreen tool-details overlay whose close control is inert in the current host is not rendered on narrow screens, so it cannot trap the chat.
 - **Storm-safe reactivity** — the drawer/menu observers and the settings poller react to a burst of streaming messages at a capped rate and back off while the host is unreachable, a rail remount during a reconnect keeps the drawer state instead of flapping it, and drawer close taps retry through a remount instead of landing on a stale toggle: many sessions streaming at once no longer freeze input or twitch the sidebar into unclickability, whether it is open or closed.
+- **Self-update** — the client bundle is served immutable per revision, so a phone tab can keep running an older build for days. The page compares the revision it booted with against the one the server publishes now and reloads itself once the page has been idle (never while a draft is being typed), or offers a tappable banner.
 - **Per-feature toggles** — the plugin installs a `dsh-mobile-upgrade` section in Settings → Plugins with a switch per feature.
 
 ## Screenshots
@@ -47,7 +48,7 @@ The plugin's settings card takes:
 
 ## Feature toggles
 
-Every feature above can be switched in Settings → Plugins → dsh-mobile-upgrade (effective on the next page load), or overridden per device with a `localStorage` key — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus`, `mfx-net`, `mfx-questions` — where the value `"0"` turns a feature off.
+Every feature above can be switched in Settings → Plugins → dsh-mobile-upgrade (effective on the next page load), or overridden per device with a `localStorage` key — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus`, `mfx-net`, `mfx-questions`, `mfx-selfupdate` — where the value `"0"` turns a feature off.
 
 ## Limitations
 
