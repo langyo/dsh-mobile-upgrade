@@ -11,7 +11,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	// The build this bundle is. Kept in step with package.json by
 	// scripts/check-manifest.mjs, and surfaced in the settings row plus the
 	// self-update banner below so a device can always say what it runs.
-	var BUILD = "0.6.6";
+	var BUILD = "0.6.7";
 
 	// Everything this plugin renders lives inside native host slots — no
 	// fixed-position body elements, no CSS overrides, no DOM polling.
@@ -792,193 +792,102 @@ function flag(name, dflt) {
 				}
 			}, true);
 			// A reconnect resync unmounts and remounts the rail root for a few
-			// frames at a time. Without a grace period every such gap flips
-			// the drawer shut and the returning rail flips it straight back
-			// open — per-mutation, that loop is the sidebar twitching itself
-			// into unclickability. Hold the previous drawer state while the
-			// rail is briefly missing; a real close (the rail collapsing)
-			// still applies at once because the rail stays mounted.
+			// frames at a time, and the host re-renders it constantly while
+			// sessions stream. That churn used to be mirrored, and two attempts
+			// to be clever about it (a settle window before obeying, and clicking
+			// the host's toggle to bring it along) produced exactly the two phone
+			// reports this block exists to prevent: the drawer closing under a tap
+			// that had nothing to do with closing it, and the drawer appearing by
+			// itself while the user was typing — a click sent to "help" flipped
+			// the host's rail and the mirror obeyed the flip.
+			//
+			// So the takeover's state is the user's, full stop:
+			//
+			//   * the host's rail class is read ONCE, to start in whatever state
+			//     the host is in, and never again decides anything;
+			//   * the whale is the host's own button — tapping it flips the host
+			//     and this plugin together, which is why the plugin reads the
+			//     state it can see rather than the host's class;
+			//   * the scrim and a session row are ours — closing through them asks
+			//     the host to collapse exactly once, and if that click is swallowed
+			//     the takeover stays closed anyway, because a closed takeover hides
+			//     the rail inside the 56px chip and the host being open underneath
+			//     costs nothing.
 			var railLastSeen = 0;
 			var RAIL_GRACE_MS = 600;
-			// ---------- drawer state machine ----------
-			// The rail's class is the host's state and the thing we mirror, but
-			// it arrives in two flavours that must not be treated alike:
-			//
-			//   * the commit for a tap the user just made — which we already
-			//     answered ourselves (collapseDrawer below), so it only has to
-			//     confirm what is on screen;
-			//   * churn from a remount or a re-render while sessions stream —
-			//     a transient flip that must NOT move the takeover at all.
-			//
-			// A drawer that mirrors every transient is the phone report's
-			// half-expanded freeze: a live run with the host class churning
-			// every 300ms produced seven drawer flips in three seconds, each one
-			// restarting the geometry animation from wherever it had reached, so
-			// the drawer sat visibly stuck between the chip and the panel. Three
-			// rules keep that from happening:
-			//
-			//   1. a mirrored state change moves the drawer only once the host
-			//      has held it for RAIL_SETTLE_MS (re-checked on a timer, never
-			//      trusted on the first sighting), so a remount's transient flip
-			//      is ignored — measured: host states held for 100/200/300/500ms
-			//      move nothing, a tap moves the drawer on the frame it lands
-			//      because the tap itself is the evidence (rule 2). The window
-			//      matches RAIL_GRACE_MS: a state the host cannot hold as long as
-			//      a remount gap is churn, not a state;
-			//   2. a tap's own target state (intent) outranks the mirror until
-			//      the host's commit agrees or the grace expires — without it the
-			//      stale class the host has not updated yet would reopen the
-			//      drawer the user just closed;
-			//   3. the rail is also watched directly (attributes only, one
-			//      element) so the commit is noticed in the frame it lands
-			//      instead of within the document-wide observer's 200ms window.
-			var RAIL_SETTLE_MS = 600;
-			var INTENT_GRACE_MS = 4000;
-			var railSeen = null;
-			var railSince = 0;
-			// How many times this takeover has put the host's rail back after the
-			// host dropped it on its own (see the mirror below).
-			var railHoldCount = 0;
-			var intent = null;
-			var intentUntil = 0;
-			// Which chase owns the host's toggle right now (see collapseDrawer):
-			// one tap, one chase, and every step re-checks that it is still the
-			// current one before clicking.
-			var chaseToken = 0;
-			var railWatched = null;
-			var railObserver = null;
+			var initialized = false;
+			var drawerStart = Date.now();
+			var openingUntil = 0;
+			var closingUntil = 0;
+			var hostAskedOnce = false;
 			function railRoot() {
 				try { return document.querySelector('[class*="hHd-Xa_root"]'); } catch (e) { return null; }
 			}
-			function railState() {
+			function railCollapsed() {
 				var rail = railRoot();
-				if (!rail) return "missing";
-				return String(rail.className).indexOf("hHd-Xa_collapsed") !== -1 ? "collapsed" : "expanded";
+				if (!rail) return null;
+				return String(rail.className).indexOf("hHd-Xa_collapsed") !== -1;
 			}
 			function setDrawer(open) {
-				if (open !== drawerOpen) railHoldCount = 0;
 				drawerOpen = open;
 				document.documentElement.classList.toggle("mfx-drawer-open", open);
-				// opening retires the closed chip's rescue look: the rail is the
-				// drawer's own again
 				if (open) document.documentElement.classList.remove("mfx-chip-closing");
 			}
-			function settleIntent() {
-				intent = null;
-				// a chase belongs to the collapse that started it: settling the
-				// intent retires it, so no queued click can act on a matter the
-				// plugin already considers closed
-				chaseToken++;
-				document.documentElement.classList.remove("mfx-chip-closing");
+			// The chip paints the host's collapsed rail's own look while the host
+			// has not collapsed yet: the closed chip would otherwise hold a 56px
+			// crop of the still-expanded sidebar, with the whale outside it.
+			function chipLook(collapsed) {
+				document.documentElement.classList.toggle("mfx-chip-closing", collapsed);
 			}
-			function syncDrawerState() {
-				var state = railState();
-				if (state === "missing") {
-					if (drawerOpen && Date.now() - railLastSeen < RAIL_GRACE_MS) return;
-					state = "collapsed";
-				} else {
-					railLastSeen = Date.now();
-					// the host rebuilds the rail root on toggle: follow the new
-					// element so the class watch above keeps working
-					var rail = railRoot();
-					if (rail !== railWatched) {
-						railWatched = rail;
-						if (railObserver) railObserver.disconnect();
-						try {
-							// the rail's class says nothing about the chip's
-							// position, so the watch runs the state machine alone
-							railObserver = new MutationObserver(syncDrawerState);
-							railObserver.observe(rail, { attributes: true, attributeFilter: ["class"] });
-						} catch (e) { railObserver = null; }
+			function observeDrawer() {
+				var rail = railRoot();
+				if (rail) railLastSeen = Date.now();
+				var collapsed = railCollapsed();
+				if (!initialized) {
+					if (collapsed === null) {
+						// the rail is not mounted yet: wait for it rather than
+						// guessing the takeover's first state
+						if (Date.now() - drawerStart < 4000) return;
+						collapsed = true;
 					}
-				}
-				if (intent !== null) {
-					var want = intent;
-					var agrees = want ? state === "expanded" : state === "collapsed";
-					if (agrees) {
-						// the host's commit confirms the tap: apply it now instead
-						// of waiting out the settle window the churn path needs
-						settleIntent();
-						if (want !== drawerOpen) setDrawer(want);
-					} else if (Date.now() > intentUntil) {
-						settleIntent();
-					} else {
-						return;
-					}
-				}
-				var open = state === "expanded";
-				if (open === drawerOpen) { railSeen = state; return; }
-				if (railSeen !== state) {
-					railSeen = state;
-					railSince = Date.now();
-					// confirm on a timer: a state the host does not hold for even
-					// this long is a remount frame, not a state
-					setTimeout(syncDrawerState, RAIL_SETTLE_MS + 20);
+					initialized = true;
+					setDrawer(collapsed === false);
+					chipLook(false);
 					return;
 				}
-				if (Date.now() - railSince < RAIL_SETTLE_MS) return;
-				// The host drops its rail for reasons of its own on a phone — the
-				// keyboard opening over the search box, an inner dialog taking
-				// the width — and obeying that closed the takeover out from under
-				// whoever was working in it, which reads as "every tap closes the
-				// sidebar". A collapse nobody asked for is put back instead (the
-				// host's own toggle, once per sighting); if it keeps collapsing,
-				// the host wins and the takeover closes, as before.
-				if (!open && drawerOpen === true && intent === null && railHoldCount < 3) {
-					var holdToggle = document.querySelector('[class*="hHd-Xa_toggle"]');
-					if (holdToggle) {
-						railHoldCount++;
-						railSeen = state;
-						holdToggle.click();
-						return;
-					}
+				// Only the chip's rescue look follows the host now: once the rail
+				// really is collapsed, the chip stops pretending.
+				if (!drawerOpen && collapsed === true) chipLook(false);
+				if (!drawerOpen && collapsed === false && Date.now() < openingUntil) {
+					// the whale was tapped: this is the host's own open landing
+					setDrawer(true);
+					return;
 				}
-				setDrawer(open);
+				if (!drawerOpen && collapsed === true && hostAskedOnce) hostAskedOnce = false;
+				if (!drawerOpen && collapsed === false && Date.now() > closingUntil) {
+					// the host is open under a closed takeover: harmless (the chip
+					// clips it), and it must NOT reopen the takeover
+					chipLook(false);
+				}
 			}
-			// Collapse the takeover now. The geometry must not wait for the
-			// host: its flip is a React commit over the whole sidebar, and on a
-			// loaded phone that commit can lag the tap by seconds — until it
-			// lands, an open takeover holds a rail that is already the collapsed
-			// white strip (the phone report's "sidebar turns white and will not
-			// go back"). So the tap collapses the geometry in the same frame,
-			// the chip gets the collapsed rail's own look while the host catches
-			// up (mfx-chip-closing), and the host's toggle is clicked only if its
-			// own state has not collapsed by the time we check — never twice for
-			// one tap, which would toggle it straight back open.
+			// Closing is ours: the geometry moves in the tap's own task, the chip
+			// gets the collapsed rail's look while the host catches up, and the
+			// host's own toggle is clicked at most once per close gesture — never
+			// on a timer, never twice, so it can never toggle the host back.
 			function collapseDrawer(hostAlreadyToggling) {
-				settleIntent();
-				if (railState() === "expanded") document.documentElement.classList.add("mfx-chip-closing");
 				setDrawer(false);
-				intent = false;
-				intentUntil = Date.now() + INTENT_GRACE_MS;
-				// The first click has to wait for the button's own commit to land:
-				// the host's state is React state, so clicking again before its
-				// re-render arrives toggles the rail straight back. A tap on the
-				// whale is already being processed by the host (longer wait); a
-				// tap elsewhere (the scrim, a session row) is not, but its click
-				// still needs the same room before a second one is fair.
-				var delays = hostAlreadyToggling ? [700, 800, 1000, 1300] : [400, 700, 900, 1200];
-				var token = chaseToken;
-				var attempt = 0;
-				// Only a rail that is really collapsed ends the chase. A rail that
-				// is *missing* is the host remounting it — picking a session
-				// re-renders the sidebar — and reading that as "already
-				// collapsed" made the chase give up before its first click, after
-				// which the mirror reopened the drawer over the very session the
-				// user had just picked (measured: 5.6s after the tap).
-				var step = function () {
-					if (token !== chaseToken) return;
-					if (railState() === "collapsed") { settleIntent(); return; }
-					if (attempt >= delays.length) { settleIntent(); return; }
+				closingUntil = Date.now() + 3000;
+				chipLook(true);
+				if (railCollapsed() === false && !hostAskedOnce) {
+					hostAskedOnce = true;
+					var delay = hostAlreadyToggling ? 600 : 250;
 					setTimeout(function () {
-						if (token !== chaseToken) return;
-						if (railState() === "collapsed") { settleIntent(); return; }
+						if (railCollapsed() !== false) { chipLook(false); return; }
 						var t = document.querySelector('[class*="hHd-Xa_toggle"]');
 						if (t) t.click();
-						step();
-					}, delays[attempt++]);
-				};
-				step();
+						setTimeout(function () { if (railCollapsed() === true) chipLook(false); }, 1200);
+					}, delay);
+				}
 			}
 			var syncDrawer = function () {
 				try {
@@ -988,7 +897,7 @@ function flag(name, dflt) {
 						if (drawerOpen !== false) setDrawer(false);
 						return;
 					}
-					syncDrawerState();
+					observeDrawer();
 				} catch (e) {}
 			};
 			// Every streaming token mutates the document, so in a multi-session
@@ -1021,30 +930,21 @@ function flag(name, dflt) {
 					if (!ev.isTrusted) return;
 					var target = ev.target;
 					var onToggle = target && target.closest && target.closest('[class*="hHd-Xa_toggle"]');
-					// The whale both opens and closes. Closing is ours on the
-					// spot (collapseDrawer); opening stays the host's to perform,
-					// but this tap already proves the change is intended, so the
-					// mirror may apply the host's commit without waiting out the
-					// settle window it needs to distrust remount churn.
+					// The whale both opens and closes. The open is the host's
+					// own: this click already toggled its rail, so the takeover
+					// takes the geometry as soon as the host has the content for
+					// it (see observeDrawer, which the rail's own class watch
+					// drives). The close is ours, on the spot.
 					if (onToggle && !desktopMQ.matches) {
-						// the visible state decides, not the rail's class: after
-						// an optimistic close the host's class still says
-						// expanded for as long as its commit takes, and reading
-						// that would turn the very next tap (the user reopening)
-						// into another close — measured: that tap was swallowed
-						// and the drawer stayed shut until a later tap toggled it
-						// out of sync with the rail
 						if (drawerOpen) {
 							collapseDrawer(true);
 						} else {
-							intent = true;
-							intentUntil = Date.now() + INTENT_GRACE_MS;
-							// a new intent supersedes any chase still running from
-							// an earlier close: that chase would otherwise fire its
-							// next click after the drawer is open again and toggle
-							// the host's rail shut under the user
-							chaseToken++;
-							syncDrawerState();
+							openingUntil = Date.now() + 2500;
+							// The host flips its rail on this same click; the
+							// geometry waits for that commit so the panel never
+							// opens over a rail that is still the chip. Its class
+							// watch calls back within a frame.
+							document.documentElement.classList.add("mfx-chip-closing");
 						}
 						return;
 					}
