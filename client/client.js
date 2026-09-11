@@ -1012,24 +1012,28 @@ function flag(name, dflt) {
 					}
 					if (!document.documentElement.classList.contains("mfx-drawer-open")) return;
 					if (document.querySelector('[class*="VOzbGW_overlay"]')) return;
-					// Only opening a session closes the takeover. Tapping a
-					// session row, or New Session, is that; everything else inside
-					// the drawer is drawer furniture the user is still working
-					// with — "Show N more sessions", unfolding a workspace, the
-					// search box, a settings trigger — and must leave the drawer
-					// exactly where it is.
-					//
-					// This is deliberately the element that was tapped rather
-					// than a guess from what changed afterwards: an earlier take
-					// closed on any tap and, once made instant, folded the drawer
-					// out from under the user whenever they revealed more rows;
-					// a follow-up that compared the host's selected row instead
-					// also fired when unfolding a workspace unmounted that row.
-					var insideDrawer = !!(target && target.closest
-						&& target.closest('[class*="pI_x6G_sidebarCol"]'));
-					var opensSession = !!(target && target.closest
-						&& target.closest('[class*="sessionRow"], [class*="newSession"]'));
-					if (opensSession || !insideDrawer) collapseDrawer(false);
+					// Two taps close the takeover, and only two:
+					//   * the scrim — our own element, the only thing that
+					//     really is "outside";
+					//   * a session row's own body, which is the user opening a
+					//     session.
+					// Everything else leaves the drawer standing: a control
+					// nested in a row, the row's ⋯ menu, "Show N more sessions",
+					// unfolding a workspace, the search box, the sidebar's own
+					// menu trigger — and every popup the host portals out to the
+					// document body, which is what made an earlier "anything
+					// outside the sidebar column closes it" reading fold the
+					// drawer out from under the user on almost every control
+					// they touched.
+					var onScrim = !!(target && (target.id === "mfx-scrim"
+						|| (target.closest && target.closest("#mfx-scrim"))));
+					var row = target && target.closest ? target.closest('[class*="sessionRow"]') : null;
+					var control = target && target.closest
+						? target.closest('button, [role="button"], input, select, textarea') : null;
+					// a control inside the row is the row's own affordance, not a
+					// session pick
+					var picksSession = !!row && (!control || control === row);
+					if (onScrim || picksSession) collapseDrawer(false);
 				} catch (e) {}
 			}, true);
 		}
