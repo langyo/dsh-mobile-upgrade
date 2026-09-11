@@ -137,6 +137,22 @@ if (!files.includes(host) || !files.includes(client)) {
   ok(`host half derives its identity from package.json and the client half matches "${name}"`)
 }
 
+// --- the client's build constant must equal the package version ------------
+//
+// The client bundle is a plain script with no build step, so its BUILD literal
+// is the only thing a running page can report about itself (the settings row
+// and the self-update banner both show it). A version bump that forgets it
+// would have a device claim a build it is not running.
+
+const buildMatch = /var BUILD = "([^"]+)"/.exec(text(client))
+if (buildMatch === null) {
+  fail(client, 'no BUILD constant — a device could not say which build it runs')
+} else if (buildMatch[1] !== pkg.version) {
+  fail(client, `BUILD ${buildMatch[1]} != package version ${pkg.version}`)
+} else {
+  ok(`client BUILD matches package version ${pkg.version}`)
+}
+
 // --- the rename must not creep back ----------------------------------------
 
 const retired = ['mobile-ui-fix']
