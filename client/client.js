@@ -1,6 +1,6 @@
 window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	var React = require("react");
-	var inject = ["slots"];
+	var inject = ["slots", "sessions"];
 
 	// Identity shared with the host half: the settings section key and the
 	// route prefix both derive from the package name, so the two halves can
@@ -11,7 +11,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	// The build this bundle is. Kept in step with package.json by
 	// scripts/check-manifest.mjs, and surfaced in the settings row plus the
 	// self-update banner below so a device can always say what it runs.
-	var BUILD = "0.6.8";
+	var BUILD = "0.7.0";
 
 	// Everything this plugin renders lives inside native host slots — no
 	// fixed-position body elements, no CSS overrides, no DOM polling.
@@ -56,6 +56,25 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //      collapsed/expanded frame cannot move the takeover, and drawer close
 //      taps (the whale, the scrim, a session row) collapse it on the spot and
 //      then chase the host's toggle only if its own state has not followed.
+// 11. agents guard: the host serves the subagent catalog by enumerating the
+//      ENTIRE session corpus per request (~1s at a 2400-session history),
+//      and its client fires one on every selection, hover-open, and
+//      membership event while a catalog menu is open. The guard wraps the
+//      refresh choke point: childless parents (per the live list) are never
+//      asked, a parent is re-asked at most once per 2.5s, and refresh
+//      starts are spaced 350ms apart.
+// 12. desktop lineage click: the host's subagent chips open on hover only —
+//      the count trigger carries no onClick, so a click does nothing. A
+//      capture click shim translates a tap on a chip into the
+//      mouseover/mouseout pair the host's own hover machinery already
+//      understands, making click a proper toggle (ancestor crumbs keep
+//      their navigate click).
+// 13. narrow header collector: below 1024px the header's chips (lineage,
+//      jobs, preset) are wider than the phone and hover-only. They fold
+//      into one pill (title + agent/job badges); tapping it opens a
+//      full-width sheet with the lineage, the live subagent tree (rows
+//      from the session list; branches fetch their catalog on demand,
+//      guarded), and this session's background jobs.
 //
 // Optional features are toggled with localStorage keys (value "0" = off):
 //   mfx-attach   (default on) — the 📎 upload button
@@ -68,6 +87,8 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //   mfx-net      (default on) — the stuck-request network chip
 //   mfx-questions (default on) — the capped, scrollable question region
 //   mfx-selfupdate (default on) — reload the page when the plugin is upgraded
+//   mfx-agents   (default on) — the catalog-refresh guard + click-to-open chips
+//   mfx-header   (default on) — the narrow-header collector pill + sheet
 // Without a localStorage override, this plugin's own settings section decides
 // the per-feature toggles (they take effect on next load).
 var namespaceFlags = null;
@@ -84,7 +105,9 @@ var NAMESPACE_FLAG_KEYS = {
 	menus: "menusEnabled",
 	net: "netEnabled",
 	questions: "questionsEnabled",
-	selfupdate: "selfUpdateEnabled"
+	selfupdate: "selfUpdateEnabled",
+	agents: "agentsEnabled",
+	header: "headerEnabled"
 };
 function flag(name, dflt) {
 	try {
@@ -1362,6 +1385,860 @@ function flag(name, dflt) {
 					{ subtree: true, childList: true, characterData: true });
 			} catch (e) {}
 			syncQuestionScroll();
+		}
+
+		// ---------- 11. agents guard: catalog refreshes stop hammering the host ----------
+		// The subagent catalog (the "N subagents" chips and their trees) is
+		// served by a host route that enumerates the ENTIRE session corpus on
+		// every call: with a 2400-session history one request costs a full
+		// second of host time. The host client fires one on every session
+		// selection, every hover-open of a chip, and — while a catalog menu is
+		// open — after every membership event (50ms debounce). A workflow
+		// fanning out subagents turns that into a request storm that starves
+		// the very host that has to answer it, which is exactly when the
+		// chips feel dead and the network chip lights up.
+		//
+		// The guard wraps the session manager's refreshSubagents (the single
+		// choke point every caller — select, catalog-open, stale re-arm,
+		// reconnect — goes through) and adds three client-side brakes while
+		// keeping the host's own per-parent single-flight semantics:
+		//   * a parent with no subagent children in the live session list
+		//     (and no prior catalog entries) can have no catalog children —
+		//     the corpus scan is skipped outright. The list baseline arrives
+		//     before this fires at startup, so cold starts are unaffected;
+		//   * a parent whose last refresh settled less than
+		//     AGENTS_COOLDOWN_MS ago is not refreshed again;
+		//   * refresh starts are spaced at least AGENTS_GAP_MS apart, so a
+		//     burst of selections/hovers collapses into a spaced trickle
+		//     instead of a parallel pile of full-corpus scans.
+		var mfxForceCatalogRefresh = null;
+		if (flag("agents", true)) {
+			var AGENTS_COOLDOWN_MS = 2500;
+			var AGENTS_GAP_MS = 350;
+			var agentsStats = { skippedChildless: 0, skippedCooldown: 0, started: 0 };
+			var agentsLastOk = {};
+			var agentsLastStart = 0;
+			var agentsKidCache = { src: null, index: null };
+
+			function agentsChildrenIndex() {
+				try {
+					var list = ctx.sessions && ctx.sessions.list;
+					if (!list || !list.getSnapshot) return null;
+					var snap = list.getSnapshot();
+					if (agentsKidCache.src === snap) return { snap: snap, index: agentsKidCache.index };
+					var index = {};
+					var byId = snap.byId || {};
+					for (var key in byId) {
+						var row = byId[key];
+						if (row && row.origin === "subagent" && row.parentId) {
+							(index[row.parentId] || (index[row.parentId] = [])).push(key);
+						}
+					}
+					agentsKidCache.src = snap;
+					agentsKidCache.index = index;
+					return { snap: snap, index: index };
+				} catch (e) { return null; }
+			}
+
+			function installAgentsGuard() {
+				var svc = ctx.sessions;
+				if (!svc) return;
+				var manager = svc.manager && typeof svc.manager.refreshSubagents === "function"
+					? svc.manager : null;
+				var target = manager !== null ? manager
+					: (typeof svc.refreshSubagents === "function" ? svc : null);
+				if (target === null) return;
+				if (target.__mfxAgentsGuarded) {
+					// a plugin reload re-runs apply(): keep the forced-refresh
+					// escape hatch pointing at the one original method
+					mfxForceCatalogRefresh = function (parentSessionId) {
+						return Promise.resolve(target.__mfxOrigRefresh.call(target, parentSessionId));
+					};
+					return;
+				}
+				target.__mfxAgentsGuarded = true;
+				var origRefresh = target.refreshSubagents;
+				target.__mfxOrigRefresh = origRefresh;
+				// A forced refresh bypasses the brakes (sheet retry button,
+				// pending navigation): the user asked for THIS fetch.
+				mfxForceCatalogRefresh = function (parentSessionId) {
+					return Promise.resolve(origRefresh.call(target, parentSessionId));
+				};
+				target.refreshSubagents = function (parentSessionId) {
+					try {
+						var view = agentsChildrenIndex();
+						var snap = view !== null ? view.snap : null;
+						var kids = view !== null ? view.index : null;
+						var catalog = snap !== null && snap.subagentsByParent
+							? snap.subagentsByParent[parentSessionId] : undefined;
+						var byIdLoaded = snap !== null && snap.byId
+							&& Object.keys(snap.byId).length > 0;
+						var childless = byIdLoaded
+							&& (!kids || !kids[parentSessionId])
+							&& (catalog === undefined
+								|| (catalog.state === "ready" && (catalog.entries || []).length === 0));
+						// An error catalog is not evidence of childlessness —
+						// the host's own Retry must stay able to refetch.
+						if (childless) {
+							agentsStats.skippedChildless++;
+							return Promise.resolve();
+						}
+						// A catalog someone is watching (an open menu — the
+						// host's chip or this plugin's sheet) keeps its live
+						// membership refreshes: the cooldown must not eat the
+						// 50ms-debounced follow-up a new child schedules, or
+						// the open tree goes stale until it is reopened. The
+						// 350ms start gap below still spaces the fetches.
+						var openNow = false;
+						try {
+							openNow = target.openCatalogs instanceof Set
+								&& target.openCatalogs.has(parentSessionId);
+						} catch (e) {}
+						if (!openNow
+							&& Date.now() - (agentsLastOk[parentSessionId] || 0) < AGENTS_COOLDOWN_MS) {
+							agentsStats.skippedCooldown++;
+							return Promise.resolve();
+						}
+					} catch (e) {}
+					var wait = Math.max(0, agentsLastStart + AGENTS_GAP_MS - Date.now());
+					agentsLastStart = Date.now() + wait;
+					agentsStats.started++;
+					var run = function () {
+						return Promise.resolve(origRefresh.call(target, parentSessionId)).then(
+							function (result) {
+								agentsLastOk[parentSessionId] = Date.now();
+								return result;
+							},
+							function (error) {
+								delete agentsLastOk[parentSessionId];
+								throw error;
+							}
+						);
+					};
+					return wait > 0
+						? new Promise(function (resolve) {
+							setTimeout(function () { resolve(run()); }, wait);
+						})
+						: run();
+				};
+			}
+			installAgentsGuard();
+			window.__mfxAgentsDebug = function () {
+				return JSON.parse(JSON.stringify(agentsStats));
+			};
+		}
+
+		// ---------- 12. desktop lineage chips open on click ----------
+		// The host's subagent chips (the "N subagents" count and the subagent
+		// title switcher) only open on HOVER: the count trigger carries no
+		// onClick at all, so a click does nothing and moving the mouse away
+		// closes the menu 120ms later — "hover opens it, clicking never does".
+		// The chips keep their hover behavior; this shim translates a real
+		// CLICK on a chip into the hover event pair the host already
+		// understands (React delegates mouseenter/leave from native
+		// mouseover/mouseout), so click becomes a toggle:
+		//   closed + click  -> mouseover  -> opens (through the host's 150ms
+		//                                   hover timer, with its refresh)
+		//   open   + click  -> mouseout   -> closes (the host's 120ms close)
+		// Ancestor-crumb switchers are left alone: their click navigates to
+		// the parent session, which is correct.
+		if (flag("agents", true)) {
+			function lineageChipRoot(btn, prefix) {
+				var node = btn.parentElement;
+				var guard = 0;
+				while (node && guard++ < 4) {
+					if (String(node.className || "").indexOf(prefix + "_root") !== -1) return node;
+					node = node.parentElement;
+				}
+				return null;
+			}
+			document.addEventListener("click", function (ev) {
+				try {
+					var target = ev.target;
+					if (!target || !target.closest) return;
+					var nav = target.closest('nav[class*="_crumbs"]');
+					if (!nav) return;
+					var btn = target.closest("button");
+					if (!btn || !nav.contains(btn)) return;
+					var classes = String(btn.className || "").split(/\s+/);
+					var prefix = null;
+					for (var i = 0; i < classes.length; i++) {
+						if (/_ancestorSwitcherTrigger$/.test(classes[i])) return; // host: click navigates
+					}
+					for (var j = 0; j < classes.length; j++) {
+						var m = /^([A-Za-z0-9_-]+)_(?:switcherTrigger|trigger)$/.exec(classes[j]);
+						if (m !== null) { prefix = m[1]; break; }
+					}
+					if (prefix === null) return;
+					var root = lineageChipRoot(btn, prefix);
+					if (root === null) return;
+					var isOpen = btn.getAttribute("aria-expanded") === "true";
+					root.dispatchEvent(new MouseEvent(isOpen ? "mouseout" : "mouseover", {
+						bubbles: true,
+						cancelable: true,
+						view: window,
+						relatedTarget: isOpen ? document.body : null
+					}));
+				} catch (e) {}
+			}, true);
+		}
+
+		// ---------- 13. narrow header: one collector pill, one full-width sheet ----------
+		// Below 1024px the session header's own controls cannot fit a phone:
+		// the breadcrumb lineage (one chip per ancestor), the jobs count, the
+		// preset label — a row far wider than the viewport, and the chips it
+		// is made of open on hover, which a phone cannot do at all. On narrow
+		// screens this feature folds the whole row into ONE pill:
+		//   [≡ current title …] (dot) 64 agents · 3 jobs
+		// Tapping it opens a full-width sheet (portal, 10px margins) with
+		//   * the lineage — every ancestor up to the root, each row tappable,
+		//     each with its descendant count;
+		//   * the subagent tree rooted at the family root — rows render from
+		//     the LIVE session list (titles and running dots arrive with the
+		//     baseline, no request), branches expand on demand and only then
+		//     fetch that branch's catalog (through the guarded refresh);
+		//   * this session's background jobs, mirroring the host's list.
+		// Popups opened from here span the phone width — the same treatment
+		// the model menu already gets. On wide screens nothing changes.
+		if (flag("header", true)) {
+			var createPortalFn = null;
+			try { createPortalFn = require("react-dom").createPortal; } catch (e) {}
+
+			function mfxT(zh, en) {
+				try {
+					return (navigator.language || "en").toLowerCase().indexOf("zh") === 0 ? zh : en;
+				} catch (e) { return en; }
+			}
+
+			var hstyle = document.createElement("style");
+			hstyle.id = "mfx-header-style";
+			hstyle.textContent = [
+				"@media (max-width: 1023px) {",
+				// The host's own header chips fold away; the collector pill
+				// (data-mfx-collector on its root) takes the whole row. The
+				// slot outlet renders one display:contents anchor
+				// div[data-slot=...] around the entry list, so the sibling
+				// chips are the anchor's children, not the container's.
+				"  nav[class*=\"_crumbs\"] { display: none !important; }",
+				"  [class*=\"_headerActions\"] { flex: 1 1 auto !important; min-width: 0 !important; }",
+				"  [data-slot=\"conversation.session.header.actions\"] > *:not([data-mfx-collector])",
+				"  { display: none !important; }",
+				"  [class*=\"_headerUtilities\"] { display: none !important; }",
+				// view tabs, if a session grows more than one, scroll instead
+				// of overflowing the row
+				"  [class*=\"_tabs\"] { overflow-x: auto !important; scrollbar-width: none !important; }",
+				"  [class*=\"_tabs\"]::-webkit-scrollbar { display: none !important; }",
+				"}"
+			].join("\n");
+			document.head.appendChild(hstyle);
+
+			var narrowHeaderMQ = null;
+			try { narrowHeaderMQ = window.matchMedia("(max-width: 1023px)"); } catch (e) {}
+			function useMfxNarrow() {
+				var st = React.useState(function () { return !!(narrowHeaderMQ && narrowHeaderMQ.matches); });
+				React.useEffect(function () {
+					if (!narrowHeaderMQ || !narrowHeaderMQ.addEventListener) return undefined;
+					var fn = function () { st[1](narrowHeaderMQ.matches); };
+					narrowHeaderMQ.addEventListener("change", fn);
+					return function () {
+						try { narrowHeaderMQ.removeEventListener("change", fn); } catch (e) {}
+					};
+				}, []);
+				return st[0];
+			}
+
+			var MFX_SHEET_Z = 145;
+			var MFX_RUNNING = "#34a853";
+			var MFX_IDLE = "#8a8f98";
+			var MFX_WARN = "#d68020";
+			var MFX_ERROR = "#c64040";
+
+			function mfxDot(color, pulse) {
+				return React.createElement("span", {
+					style: {
+						flex: "none", width: "8px", height: "8px", borderRadius: "50%",
+						background: color, boxShadow: pulse ? "0 0 0 3px " + color + "40" : "none"
+					}
+				});
+			}
+
+			function mfxBadge(text, color) {
+				return React.createElement("span", {
+					style: {
+						flex: "none", padding: "1px 7px", borderRadius: "8px",
+						fontSize: "11px", lineHeight: "16px", whiteSpace: "nowrap",
+						border: "1px solid " + (color || "rgba(128,128,140,.4)"),
+						color: "inherit", background: "rgba(128,128,140,.12)"
+					}
+				}, text);
+			}
+
+			function mfxChevron(open) {
+				return React.createElement("svg", {
+					width: "14", height: "14", viewBox: "0 0 24 24", fill: "none",
+					stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round",
+					strokeLinejoin: "round", "aria-hidden": "true",
+					style: { transform: open ? "rotate(90deg)" : "none", transition: "transform 120ms ease", flex: "none" }
+				}, React.createElement("path", { d: "m9 18 6-6-6-6" }));
+			}
+
+			function mfxBurger() {
+				return React.createElement("svg", {
+					width: "16", height: "16", viewBox: "0 0 24 24", fill: "none",
+					stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round",
+					strokeLinejoin: "round", "aria-hidden": "true", style: { flex: "none" }
+				},
+					React.createElement("path", { d: "M4 6h16" }),
+					React.createElement("path", { d: "M4 12h10" }),
+					React.createElement("path", { d: "M4 18h16" }));
+			}
+
+			function mfxCloseIcon() {
+				return React.createElement("svg", {
+					width: "16", height: "16", viewBox: "0 0 24 24", fill: "none",
+					stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round",
+					strokeLinejoin: "round", "aria-hidden": "true", style: { flex: "none" }
+				}, React.createElement("path", { d: "M18 6 6 18" }), React.createElement("path", { d: "m6 6 12 12" }));
+			}
+
+			function mfxDuration(ms) {
+				var total = Math.max(0, Math.floor(ms / 1000));
+				var h = Math.floor(total / 3600);
+				var m = Math.floor(total / 60) % 60;
+				var s = total % 60;
+				var two = function (n) { return (n < 10 ? "0" : "") + n; };
+				return h > 0 ? h + ":" + two(m) + ":" + two(s) : m + ":" + two(s);
+			}
+
+			function mfxJobColor(status) {
+				if (status === "running") return MFX_RUNNING;
+				if (status === "stopping" || status === "killed") return MFX_WARN;
+				if (status === "failed") return MFX_ERROR;
+				return MFX_IDLE;
+			}
+
+			var mfxRowTextStyle = {
+				flex: "1 1 auto", minWidth: "0", overflow: "hidden",
+				whiteSpace: "nowrap", textOverflow: "ellipsis", textAlign: "left",
+				fontSize: "13px", lineHeight: "18px", color: "inherit"
+			};
+			var mfxRowButtonStyle = {
+				flex: "1 1 auto", minWidth: "0", display: "flex", alignItems: "center",
+				gap: "8px", minHeight: "38px", padding: "6px 10px", border: "none",
+				borderRadius: "9px", background: "transparent", color: "inherit",
+				cursor: "pointer"
+			};
+			var mfxChevButtonStyle = {
+				flex: "none", width: "32px", height: "32px", display: "grid",
+				placeItems: "center", border: "none", borderRadius: "8px",
+				background: "transparent", color: "inherit", cursor: "pointer"
+			};
+
+			function CollectorPill(props) {
+				var sessionId = props.sessionId;
+				var useSessions = props.useSessions;
+				var narrow = useMfxNarrow();
+				var byId = useSessions(function (s) { return s.byId; });
+				var catalogs = useSessions(function (s) { return s.subagentsByParent; });
+				var jobs = useSessions(function (s) { return s.jobsBySession[sessionId]; }) || [];
+				var openState = React.useState(false);
+				var open = openState[0], setOpen = openState[1];
+				var topState = React.useState(52);
+				var top = topState[0], setTop = topState[1];
+				var nowState = React.useState(0);
+				var now = nowState[0], setNow = nowState[1];
+				var pillRef = React.useRef(null);
+				var expandedRef = React.useRef(null);
+				if (expandedRef.current === null) expandedRef.current = {};
+				var pendingNavRef = React.useRef(null);
+				var bumpState = React.useState(0);
+				var bump = function () { bumpState[1](bumpState[0] + 1); };
+
+				// lineage chain: root ... current (same walk the host header does)
+				var lineage = React.useMemo(function () {
+					var chain = [];
+					var seen = {};
+					var cursor = sessionId;
+					var guard = 0;
+					while (cursor !== undefined && cursor !== null && guard++ < 64 && !seen[cursor]) {
+						seen[cursor] = 1;
+						var row = byId[cursor];
+						if (row === undefined) break;
+						chain.unshift({
+							id: cursor,
+							title: row.displayTitle || cursor,
+							subagent: row.origin === "subagent",
+							running: !!row.running
+						});
+						if (row.origin !== "subagent" || !row.parentId) break;
+						cursor = row.parentId;
+					}
+					return chain;
+				}, [byId, sessionId]);
+				var rootId = lineage.length > 0 ? lineage[0].id : sessionId;
+				var currentTitle = (byId[sessionId] && byId[sessionId].displayTitle) || sessionId;
+
+				// live children index + per-node subtree stats, all from the
+				// session list: titles, running dots and counts need no request
+				var tree = React.useMemo(function () {
+					var kids = {};
+					for (var key in byId) {
+						var row = byId[key];
+						if (row && row.origin === "subagent" && row.parentId) {
+							(kids[row.parentId] || (kids[row.parentId] = [])).push(row);
+						}
+					}
+					var stats = {};
+					var visit = function (id, depth) {
+						if (depth > 32) return { count: 0, running: 0 };
+						var list = kids[id] || [];
+						var total = 0;
+						var running = 0;
+						for (var i = 0; i < list.length; i++) {
+							total++;
+							if (list[i].running) running++;
+							var sub = stats[list[i].id];
+							if (sub === undefined) {
+								sub = visit(list[i].id, depth + 1);
+								stats[list[i].id] = sub;
+							}
+							total += sub.count;
+							running += sub.running;
+						}
+						return { count: total, running: running };
+					};
+					for (var pid in kids) {
+						if (stats[pid] === undefined) stats[pid] = visit(pid, 0);
+					}
+					return { kids: kids, stats: stats };
+				}, [byId]);
+				var rootStats = tree.stats[rootId] || { count: 0, running: 0 };
+
+				var liveJobs = 0;
+				var ji;
+				for (ji = 0; ji < jobs.length; ji++) {
+					if (jobs[ji].status === "running" || jobs[ji].status === "stopping") liveJobs++;
+				}
+
+				// a session switch closes the sheet and folds every branch
+				React.useEffect(function () {
+					setOpen(false);
+					expandedRef.current = {};
+				}, [sessionId]);
+
+				// the clock ticks only while the sheet shows something alive
+				React.useEffect(function () {
+					if (!open) return undefined;
+					if (liveJobs === 0 && rootStats.running === 0) return undefined;
+					setNow(Date.now());
+					var timer = setInterval(function () { setNow(Date.now()); }, 1000);
+					return function () { clearInterval(timer); };
+				}, [open, liveJobs, rootStats.running]);
+
+				// Escape closes the sheet
+				React.useEffect(function () {
+					if (!open) return undefined;
+					var onKey = function (event) {
+						if (event.key === "Escape") setOpen(false);
+					};
+					document.addEventListener("keydown", onKey);
+					return function () { document.removeEventListener("keydown", onKey); };
+				}, [open]);
+
+				// sheet open: subscribe the root catalog for live membership
+				// updates (the host debounces those; the agents guard spaces
+				// the refetches), and fetch it if absent — through the forced
+				// path, so a childless root still resolves to its empty ready
+				// catalog instead of a perpetual loading row
+				React.useEffect(function () {
+					if (!open) return undefined;
+					var sessions = ctx.sessions;
+					if (!sessions) return undefined;
+					try {
+						var catalog = catalogs[rootId];
+						if (catalog === undefined || catalog.state === "error") {
+							var force = mfxForceCatalogRefresh;
+							if (force !== null) void force(rootId);
+							else void sessions.refreshSubagents(rootId);
+						}
+						sessions.setSubagentCatalogOpen(rootId, true);
+						// branches kept expanded from a previous open resume
+						// their live-membership subscription
+						for (var pid in expandedRef.current) {
+							sessions.setSubagentCatalogOpen(pid, true);
+						}
+					} catch (e) {}
+					return function () {
+						var pid;
+						for (pid in expandedRef.current) {
+							try { sessions.setSubagentCatalogOpen(pid, false); } catch (e) {}
+						}
+						try { sessions.setSubagentCatalogOpen(rootId, false); } catch (e) {}
+					};
+				}, [open, rootId]);
+
+				// a tap on a row whose mode is not known yet (catalog still
+				// loading) parks itself here; when the forced refresh lands,
+				// the navigation completes on its own
+				React.useEffect(function () {
+					var pending = pendingNavRef.current;
+					if (pending === null) return;
+					if (Date.now() - pending.at > 6000) {
+						pendingNavRef.current = null;
+						return;
+					}
+					var summary = byId[pending.id];
+					if (summary === undefined || summary.origin !== "subagent") {
+						pendingNavRef.current = null;
+						return;
+					}
+					var cat = catalogs[summary.parentId];
+					if (cat === undefined || cat.entries === undefined) return;
+					for (var i = 0; i < cat.entries.length; i++) {
+						var entry = cat.entries[i];
+						if (entry.kind === "child" && entry.id === pending.id) {
+							pendingNavRef.current = null;
+							navigateTo(pending.id, entry, summary.parentId);
+							return;
+						}
+					}
+				}, [catalogs, byId]);
+
+				function closeSheet() { setOpen(false); }
+
+				// Bypass the agents guard: these fetches answer a user gesture
+				// (an error retry, a row tapped while its mode was still
+				// unknown), so they must actually run.
+				function forceCatalog(pid) {
+					var sessions = ctx.sessions;
+					if (sessions === undefined || pid === undefined) return;
+					try {
+						sessions.setSubagentCatalogOpen(pid, true);
+						var force = mfxForceCatalogRefresh;
+						if (force !== null) void force(pid);
+						else void sessions.refreshSubagents(pid);
+					} catch (e) {}
+				}
+
+				function toggleBranch(pid) {
+					if (expandedRef.current[pid]) {
+						delete expandedRef.current[pid];
+						try { ctx.sessions.setSubagentCatalogOpen(pid, false); } catch (e) {}
+					} else {
+						expandedRef.current[pid] = 1;
+						// expanding fetches only what is missing; a ready
+						// catalog just resumes its live subscription
+						var catalog = catalogs[pid];
+						if (catalog === undefined || catalog.state === "error") forceCatalog(pid);
+						else {
+							try { ctx.sessions.setSubagentCatalogOpen(pid, true); } catch (e) {}
+						}
+					}
+					bump();
+				}
+
+				function navigateTo(id, entry, parentId) {
+					var sessions = ctx.sessions;
+					if (sessions === undefined) return;
+					var summary = byId[id];
+					var isSubagent = summary !== undefined && summary.origin === "subagent";
+					var address = null;
+					try { address = sessions.subagentAddress(id) || null; } catch (e) {}
+					if (address === null && entry !== null && entry !== undefined
+						&& entry.kind === "child" && parentId !== undefined) {
+						address = { parentSessionId: parentId, childSessionId: id, mode: entry.mode };
+					}
+					if (address === null && isSubagent) {
+						// open(id) resolves an address internally only when the
+						// parent's catalog is loaded — otherwise the child
+						// would land on a broken generic route
+						var pid = summary.parentId;
+						var cat = catalogs[pid];
+						var found = false;
+						if (cat !== undefined && cat.entries !== undefined) {
+							for (var i = 0; i < cat.entries.length; i++) {
+								if (cat.entries[i].kind === "child" && cat.entries[i].id === id) { found = true; break; }
+							}
+						}
+						if (!found) {
+							pendingNavRef.current = { id: id, at: Date.now() };
+							forceCatalog(pid);
+							return;
+						}
+					}
+					try {
+						if (address !== null) sessions.openSubagent(address);
+						else sessions.open(id);
+					} catch (e1) {
+						try { sessions.open(id); } catch (e2) {}
+					}
+					closeSheet();
+				}
+
+				function openSheet() {
+					var rect = pillRef.current !== null ? pillRef.current.getBoundingClientRect() : null;
+					var t = rect !== null ? rect.bottom + 6 : 52;
+					var capped = Math.max(8, Math.min(t, window.innerHeight - 140));
+					setTop(capped);
+					setOpen(true);
+				}
+
+				function sectionLabel(text) {
+					return React.createElement("div", {
+						key: "sec" + text,
+						style: {
+							padding: "10px 12px 4px", fontSize: "11px", letterSpacing: ".06em",
+							textTransform: "uppercase", opacity: ".55", fontWeight: 600, whiteSpace: "nowrap",
+							overflow: "hidden", textOverflow: "ellipsis"
+						}
+					}, text);
+				}
+
+				function branchRows(pid, level, out) {
+					var cat = catalogs[pid];
+					var kids = tree.kids[pid] || [];
+					var seen = {};
+					var models = [];
+					var i;
+					for (i = 0; i < kids.length; i++) {
+						seen[kids[i].id] = 1;
+						models.push({
+							id: kids[i].id,
+							title: kids[i].displayTitle || kids[i].id,
+							running: !!kids[i].running,
+							entry: catalogEntry(cat, kids[i].id)
+						});
+					}
+					if (cat !== undefined && cat.entries !== undefined) {
+						for (i = 0; i < cat.entries.length; i++) {
+							var entry = cat.entries[i];
+							if (entry.kind !== "child" || seen[entry.id]) continue;
+							models.push({
+								id: entry.id,
+								title: entry.label || entry.id,
+								running: entry.activity === "running",
+								entry: entry
+							});
+						}
+					}
+					var loading = cat === undefined || cat.state === "loading";
+					if (models.length === 0 && loading) {
+						out.push(React.createElement("div", {
+							key: "ld" + pid,
+							style: { padding: "8px 12px 8px " + (10 + level * 14) + "px", opacity: ".6", fontSize: "12px" }
+						}, mfxT("正在加载代理目录…", "Loading the agent catalog…")));
+						return;
+					}
+					if (models.length === 0 && cat !== undefined && cat.state === "error") {
+						out.push(React.createElement("div", {
+							key: "er" + pid,
+							style: { display: "flex", alignItems: "center", gap: "8px", padding: "6px 12px" }
+						},
+							React.createElement("span", { style: { fontSize: "12px", color: MFX_ERROR, flex: "1 1 auto" } },
+								mfxT("目录加载失败", "The catalog failed to load")),
+							React.createElement("button", {
+								type: "button", onClick: function () { forceCatalog(pid); bump(); },
+								style: { flex: "none", padding: "4px 10px", borderRadius: "8px", border: "1px solid rgba(128,128,140,.4)", background: "transparent", color: "inherit", fontSize: "12px", cursor: "pointer" }
+							}, mfxT("重试", "Retry"))));
+						return;
+					}
+					for (i = 0; i < models.length; i++) {
+						var model = models[i];
+						var entry2 = model.entry;
+						var expandable = entry2 !== undefined && entry2 !== null
+							? !!entry2.hasChildren
+							: !!(tree.kids[model.id] && tree.kids[model.id].length);
+						var st = tree.stats[model.id] || { count: 0, running: 0 };
+						var isExpanded = !!expandedRef.current[model.id];
+						out.push(React.createElement("div", {
+							key: "c" + model.id,
+							style: { display: "flex", alignItems: "center", paddingLeft: (6 + level * 14) + "px" }
+						},
+							React.createElement("button", {
+								type: "button",
+								style: mfxRowButtonStyle,
+								onClick: (function (rowModel) {
+									return function () { navigateTo(rowModel.id, rowModel.entry, pid); };
+								})(model)
+							},
+								mfxDot(model.running ? MFX_RUNNING : MFX_IDLE, model.running),
+								React.createElement("span", { style: mfxRowTextStyle }, model.title),
+								st.count > 0 ? mfxBadge(String(st.count) + (st.running > 0 ? " · " + st.running + "↑" : "")) : null
+							),
+							expandable
+								? React.createElement("button", {
+									type: "button",
+									style: mfxChevButtonStyle,
+									"aria-expanded": isExpanded,
+									"aria-label": mfxT("展开子代理", "Expand subagents"),
+									onClick: (function (rowId) {
+										return function () { toggleBranch(rowId); };
+									})(model.id)
+								}, mfxChevron(isExpanded))
+								: React.createElement("span", { style: { flex: "none", width: "32px" } })));
+						if (isExpanded && expandable) branchRows(model.id, level + 1, out);
+					}
+				}
+
+				function catalogEntry(cat, childId) {
+					if (cat === undefined || cat.entries === undefined) return undefined;
+					for (var i = 0; i < cat.entries.length; i++) {
+						if (cat.entries[i].kind === "child" && cat.entries[i].id === childId) return cat.entries[i];
+					}
+					return undefined;
+				}
+
+				if (!narrow || useSessions === undefined) return null;
+
+				var sheet = null;
+				if (open && createPortalFn !== null) {
+					var body = [];
+					// lineage
+					if (lineage.length > 1) {
+						body.push(sectionLabel(mfxT("会话层级", "Session lineage")));
+						for (var li = 0; li < lineage.length; li++) {
+							(function (node, index) {
+								var isCurrent = index === lineage.length - 1;
+								var st = tree.stats[node.id] || { count: 0, running: 0 };
+								body.push(React.createElement("button", {
+									key: "ln" + node.id,
+									type: "button",
+									style: mfxRowButtonStyle,
+									onClick: function () { if (!isCurrent) navigateTo(node.id, undefined, undefined); }
+								},
+									mfxDot(node.running ? MFX_RUNNING : (isCurrent ? MFX_IDLE : MFX_IDLE), node.running),
+									React.createElement("span", {
+										style: Object.assign({}, mfxRowTextStyle, { fontWeight: isCurrent ? 600 : 400 })
+									}, node.title),
+									node.subagent ? mfxBadge("sub", null) : null,
+									st.count > 0 ? mfxBadge(String(st.count), null) : null));
+							})(lineage[li], li);
+						}
+					}
+					// subagent tree rooted at the family root
+					body.push(sectionLabel(mfxT("子代理（", "Subagents (") + rootStats.count + mfxT("）", ")")));
+					var treeOut = [];
+					branchRows(rootId, 0, treeOut);
+					if (treeOut.length === 0) {
+						treeOut.push(React.createElement("div", {
+							key: "none",
+							style: { padding: "8px 12px", opacity: ".6", fontSize: "12px" }
+						}, mfxT("没有子代理", "No subagents")));
+					}
+					body.push.apply(body, treeOut);
+					// jobs
+					if (jobs.length > 0) {
+						body.push(sectionLabel(mfxT("后台任务（", "Background jobs (") + jobs.length + mfxT("）", ")")));
+						for (var jbi = 0; jbi < jobs.length; jbi++) {
+							(function (job) {
+								var live = job.status === "running" || job.status === "stopping";
+								var elapsed = live
+									? (now > 0 ? now : Date.now()) - job.startedAt
+									: (job.finishedAt ?? job.startedAt) - job.startedAt;
+								body.push(React.createElement("div", {
+									key: "job" + job.id,
+									style: { display: "flex", alignItems: "center", gap: "8px", padding: "7px 12px", fontSize: "12px" }
+								},
+									mfxDot(mfxJobColor(job.status), live),
+									React.createElement("span", {
+										style: {
+											flex: "none", padding: "0 6px", borderRadius: "5px",
+											background: "rgba(128,128,140,.16)", fontSize: "11px", lineHeight: "17px"
+										}
+									}, job.kind || "?"),
+									React.createElement("span", { style: mfxRowTextStyle, title: job.label }, job.label || job.id),
+									React.createElement("span", {
+										style: { flex: "none", opacity: ".6", maxWidth: "38%", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" },
+										title: job.detail || job.status
+									}, job.detail || job.status),
+									React.createElement("span", { style: { flex: "none", opacity: ".6", fontVariantNumeric: "tabular-nums" } },
+										mfxDuration(elapsed))));
+							})(jobs[jbi]);
+						}
+					}
+					sheet = createPortalFn(React.createElement(React.Fragment, null,
+						React.createElement("div", {
+							key: "mfx-sheet-backdrop",
+							onClick: closeSheet,
+							style: { position: "fixed", inset: "0", zIndex: MFX_SHEET_Z - 1, background: "rgba(0,0,0,.25)" }
+						}),
+						React.createElement("div", {
+							key: "mfx-sheet",
+							role: "dialog",
+							"aria-modal": "true",
+							"aria-label": mfxT("会话、子代理与后台任务", "Sessions, subagents and background jobs"),
+							style: {
+								position: "fixed", left: "10px", right: "10px", top: top + "px",
+								maxHeight: "calc(100vh - " + (top + 12) + "px)", zIndex: MFX_SHEET_Z,
+								overflowY: "auto", overscrollBehavior: "contain",
+								borderRadius: "14px", border: "1px solid var(--dsw-alias-border-l2, rgba(128,128,140,.35))",
+								background: "var(--dsw-specific-menu, #23252b)",
+								color: "var(--dsw-alias-label-primary, #e6e6e9)",
+								boxShadow: "0 12px 40px rgba(0,0,0,.4)"
+							}
+						},
+							React.createElement("div", {
+								style: {
+									display: "flex", alignItems: "center", gap: "8px",
+									padding: "10px 10px 6px 14px", position: "sticky", top: "0",
+									background: "inherit", borderBottom: "1px solid rgba(128,128,140,.2)"
+								}
+							},
+								React.createElement("span", {
+									style: { flex: "1 1 auto", minWidth: "0", fontWeight: 600, fontSize: "13px", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }
+								}, currentTitle),
+								rootStats.running > 0 ? mfxDot(MFX_RUNNING, true) : null,
+								React.createElement("button", {
+									type: "button", onClick: closeSheet,
+									"aria-label": mfxT("关闭", "Close"),
+									style: { flex: "none", width: "30px", height: "30px", display: "grid", placeItems: "center", border: "none", borderRadius: "8px", background: "transparent", color: "inherit", cursor: "pointer" }
+								}, mfxCloseIcon())),
+							body)), document.body);
+				}
+
+				return React.createElement(React.Fragment, null,
+					React.createElement("div", {
+						"data-mfx-collector": "1",
+						style: { flex: "1 1 auto", minWidth: 0, display: "flex" }
+					},
+						React.createElement("button", {
+							ref: pillRef,
+							type: "button",
+							onClick: openSheet,
+							"aria-expanded": open,
+							"aria-label": mfxT("查看会话层级、子代理与后台任务", "View the session lineage, subagents and background jobs"),
+							style: {
+								flex: "1 1 auto", minWidth: 0, display: "flex", alignItems: "center",
+								gap: "8px", height: "30px", padding: "0 10px", borderRadius: "9px",
+								border: "1px solid var(--dsw-alias-border-l2, rgba(128,128,140,.35))",
+								background: "transparent", color: "inherit", cursor: "pointer", fontSize: "12px"
+							}
+						},
+							mfxBurger(),
+							React.createElement("span", {
+								style: {
+									flex: "1 1 auto", minWidth: 0, overflow: "hidden",
+									whiteSpace: "nowrap", textOverflow: "ellipsis",
+									textAlign: "left", fontWeight: 500, fontSize: "13px"
+								}
+							}, currentTitle),
+							rootStats.count > 0 ? mfxBadge(mfxT(String(rootStats.count) + " 个代理", rootStats.count + " agents"), rootStats.running > 0 ? MFX_RUNNING : null) : null,
+							jobs.length > 0 ? mfxBadge(liveJobs > 0
+								? mfxT(String(liveJobs) + " 个任务", liveJobs + " jobs")
+								: mfxT(String(jobs.length) + " 个任务", jobs.length + " jobs"), liveJobs > 0 ? MFX_RUNNING : null) : null)),
+					sheet);
+			}
+
+			ctx.slots.inject("conversation.session.header.actions", function () {
+				return ctx.slots.register({
+					name: "conversation.session.header.actions",
+					id: "mfx-header-collector",
+					// the pill replaces the whole header row on phones; on
+					// desktops it renders null and the host chips stay
+					order: -20,
+					label: function () { return mfxT("顶部收纳", "Header collector"); }
+				}, CollectorPill);
+			});
 		}
 	}
 	return { name: PLUGIN_ID, inject: inject, apply: apply };
