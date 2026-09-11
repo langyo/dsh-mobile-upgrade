@@ -11,7 +11,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	// The build this bundle is. Kept in step with package.json by
 	// scripts/check-manifest.mjs, and surfaced in the settings row plus the
 	// self-update banner below so a device can always say what it runs.
-	var BUILD = "0.7.0";
+	var BUILD = "0.7.1";
 
 	// Everything this plugin renders lives inside native host slots — no
 	// fixed-position body elements, no CSS overrides, no DOM polling.
@@ -75,6 +75,18 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //      full-width sheet with the lineage, the live subagent tree (rows
 //      from the session list; branches fetch their catalog on demand,
 //      guarded), and this session's background jobs.
+// 14. list render throttle: the host's control stream pushes a whole-value
+//      projection frame for EVERY projection change of EVERY attached
+//      session — a running subagent's timing view changes on each
+//      committed event, so a busy background fleet emits 50-150 frames/s.
+//      Each frame used to mark the session LIST notifier dirty, and one
+//      list rebuild walks every summary (2400+) plus an O(n^2) entry-cache
+//      sweep — measured as ~90% of main-thread time while background
+//      sessions streamed, freezing the page hard. The throttle keeps
+//      values flowing into the per-session stores unchanged (seq-ordered,
+//      nothing lost) and only schedules the list rebuild on a trailing
+//      interval that adapts to the measured rebuild cost, so the page
+//      stays interactive no matter how hard the background streams.
 //
 // Optional features are toggled with localStorage keys (value "0" = off):
 //   mfx-attach   (default on) — the 📎 upload button
@@ -89,6 +101,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //   mfx-selfupdate (default on) — reload the page when the plugin is upgraded
 //   mfx-agents   (default on) — the catalog-refresh guard + click-to-open chips
 //   mfx-header   (default on) — the narrow-header collector pill + sheet
+//   mfx-listthrottle (default on) — the session-list render throttle
 // Without a localStorage override, this plugin's own settings section decides
 // the per-feature toggles (they take effect on next load).
 var namespaceFlags = null;
@@ -107,7 +120,8 @@ var NAMESPACE_FLAG_KEYS = {
 	questions: "questionsEnabled",
 	selfupdate: "selfUpdateEnabled",
 	agents: "agentsEnabled",
-	header: "headerEnabled"
+	header: "headerEnabled",
+	listthrottle: "listThrottleEnabled"
 };
 function flag(name, dflt) {
 	try {
@@ -2239,6 +2253,100 @@ function flag(name, dflt) {
 					label: function () { return mfxT("顶部收纳", "Header collector"); }
 				}, CollectorPill);
 			});
+		}
+
+		// ---------- 14. list render throttle ----------
+		// The host's session control stream pushes one whole-value frame per
+		// projection change of EVERY attached session to EVERY client. One
+		// projection (subagentTiming) re-objects on every committed event
+		// while a subagent turn is active, so a fleet of running agents
+		// emits a continuous 50-150 frames/s — and each frame marks the
+		// session LIST notifier dirty, whose rebuild walks every summary
+		// (2400+ here) plus an O(n^2) entry-cache sweep. Measured on this
+		// deployment: ~90% of main-thread time in buildListSnapshot while
+		// background sessions streamed; a phone needed a page reload.
+		//
+		// The wrap changes only WHEN the list re-renders, never WHAT it
+		// renders: projection frames keep landing in the per-session stores
+		// immediately (seq-ordered, whole-value, nothing lost), queue and
+		// per-session notifiers stay untouched (steering rows and the open
+		// conversation still update instantly), and the list notifier's
+		// dirty mark is coalesced onto a trailing timer. The interval
+		// adapts to the measured cost of the rebuild itself (5x, clamped
+		// to [150ms, 1s]) so a big session history can never outrun the
+		// device: the rebuild stays at most ~20% duty cycle.
+		var listThrottleStats = { coalesced: 0, flushes: 0, intervalMs: 200, rebuildEmaMs: 0 };
+		if (flag("listthrottle", true)) {
+			try {
+				var svcLT = ctx.sessions;
+				var managerLT = svcLT && svcLT.manager ? svcLT.manager
+					: (svcLT && typeof svcLT.refreshList === "function" ? svcLT : null);
+				var notifierLT = managerLT && managerLT.notifier
+					&& typeof managerLT.notifier.markDirty === "function"
+					? managerLT.notifier : null;
+				if (notifierLT !== null && !notifierLT.__mfxListThrottle) {
+					notifierLT.__mfxListThrottle = true;
+					var origMarkDirty = notifierLT.markDirty.bind(notifierLT);
+					var LT_MIN_MS = 150, LT_MAX_MS = 1000;
+					var ltInterval = 200;
+					var ltPending = false, ltTimer = null;
+					var ltFlush = function () {
+						ltTimer = null;
+						if (!ltPending) return;
+						ltPending = false;
+						listThrottleStats.flushes++;
+						origMarkDirty();
+					};
+					// The dirty bit goes down IMMEDIATELY, the notify is what
+					// coalesces. The manager's list snapshot is a cache whose
+					// only refresh path is notifier.rebuild, and list
+					// mutations (recordMutation) write this.summaries
+					// directly: a fork's synchronous-addressability contract
+					// reads getListSnapshot() a microtask after the mutation,
+					// gated by ensureFresh()'s dirty check. Deferring the bit
+					// would serve that read a stale cache and break fork and
+					// create; deferring only origMarkDirty (the subscriber
+					// notify + flush) keeps the 150fps render storm coalesced
+					// while on-demand reads keep rebuilding synchronously —
+					// and a read-rebuilt cache (ensureFresh clears the bit)
+					// still notifies on the trailing timer, which re-marks
+					// dirty before its microtask flush.
+					notifierLT.markDirty = function () {
+						notifierLT.dirty = true;
+						if (ltPending) { listThrottleStats.coalesced++; return; }
+						ltPending = true;
+						if (ltTimer !== null) return;
+						ltTimer = setTimeout(ltFlush, ltInterval);
+					};
+					// Adapt the interval to the real rebuild cost: the
+					// manager's notifier rebuilds the list snapshot, so
+					// timing that callback measures exactly the work each
+					// flush buys. An EMA keeps one outlier rebuild from
+					// spiking the interval; reads of a clean cache cost ~0
+					// and pull it back down.
+					if (typeof notifierLT.rebuild === "function" && !notifierLT.__mfxListTimed) {
+						notifierLT.__mfxListTimed = true;
+						var origRebuild = notifierLT.rebuild;
+						notifierLT.rebuild = function () {
+							var t0 = Date.now();
+							var out = origRebuild.apply(this, arguments);
+							var cost = Date.now() - t0;
+							listThrottleStats.rebuildEmaMs = listThrottleStats.rebuildEmaMs === 0
+								? cost
+								: listThrottleStats.rebuildEmaMs * 0.7 + cost * 0.3;
+							var next = Math.min(LT_MAX_MS, Math.max(LT_MIN_MS, Math.ceil(listThrottleStats.rebuildEmaMs * 5)));
+							if (next !== ltInterval) {
+								ltInterval = next;
+								listThrottleStats.intervalMs = next;
+							}
+							return out;
+						};
+					}
+					window.__mfxListThrottleDebug = function () {
+						return JSON.parse(JSON.stringify(listThrottleStats));
+					};
+				}
+			} catch (e) {}
 		}
 	}
 	return { name: PLUGIN_ID, inject: inject, apply: apply };
