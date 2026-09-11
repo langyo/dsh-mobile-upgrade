@@ -821,7 +821,7 @@ function flag(name, dflt) {
 			//      element) so the commit is noticed in the frame it lands
 			//      instead of within the document-wide observer's 200ms window.
 			var RAIL_SETTLE_MS = 600;
-			var INTENT_GRACE_MS = 2500;
+			var INTENT_GRACE_MS = 4000;
 			var railSeen = null;
 			var railSince = 0;
 			var intent = null;
@@ -928,13 +928,19 @@ function flag(name, dflt) {
 				var delays = hostAlreadyToggling ? [700, 800, 1000, 1300] : [400, 700, 900, 1200];
 				var token = chaseToken;
 				var attempt = 0;
+				// Only a rail that is really collapsed ends the chase. A rail that
+				// is *missing* is the host remounting it — picking a session
+				// re-renders the sidebar — and reading that as "already
+				// collapsed" made the chase give up before its first click, after
+				// which the mirror reopened the drawer over the very session the
+				// user had just picked (measured: 5.6s after the tap).
 				var step = function () {
 					if (token !== chaseToken) return;
-					if (railState() === "collapsed" || railState() === "missing") { settleIntent(); return; }
+					if (railState() === "collapsed") { settleIntent(); return; }
 					if (attempt >= delays.length) { settleIntent(); return; }
 					setTimeout(function () {
 						if (token !== chaseToken) return;
-						if (railState() === "collapsed" || railState() === "missing") { settleIntent(); return; }
+						if (railState() === "collapsed") { settleIntent(); return; }
 						var t = document.querySelector('[class*="hHd-Xa_toggle"]');
 						if (t) t.click();
 						step();
