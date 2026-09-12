@@ -23,11 +23,12 @@ Améliorations mobiles pour le profil web de [DeepSeek Harness](https://github.c
 
 ## Captures d'écran
 
-La pastille flottante et le tiroir de sessions (annotés) :
+La pastille flottante, le tiroir de sessions, les onglets de paramètres sur écran étroit et le collecteur d'en-tête (annotés) :
 
 | | |
 |---|---|
 | ![Pastille flottante](../../res/shot-floating-chip.png) | ![Tiroir de sessions](../../res/shot-drawer.png) |
+| ![Onglets de paramètres](../../res/shot-settings-tabs.png) | ![Collecteur d'en-tête](../../res/shot-header-collector.png) |
 
 ## Installation
 

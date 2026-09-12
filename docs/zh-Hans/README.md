@@ -23,11 +23,12 @@
 
 ## 截图
 
-悬浮球与侧栏抽屉（含标注）：
+悬浮球、侧栏抽屉、窄屏设置标签与窄屏头部收纳器（含标注）：
 
 | | |
 |---|---|
 | ![悬浮球](../../res/shot-floating-chip.png) | ![侧栏抽屉](../../res/shot-drawer.png) |
+| ![窄屏设置标签](../../res/shot-settings-tabs.png) | ![窄屏头部收纳器](../../res/shot-header-collector.png) |
 
 ## 安装
 

@@ -23,11 +23,12 @@ Mejoras de calidad de vida para móviles en el perfil web de [DeepSeek Harness](
 
 ## Capturas de pantalla
 
-El chip flotante y el cajón de sesiones (anotados):
+El chip flotante, el cajón de sesiones, las pestañas de ajustes en pantallas estrechas y el recuperador de cabecera (anotados):
 
 | | |
 |---|---|
 | ![Chip flotante](../../res/shot-floating-chip.png) | ![Cajón de sesiones](../../res/shot-drawer.png) |
+| ![Pestañas de ajustes](../../res/shot-settings-tabs.png) | ![Recuperador de cabecera](../../res/shot-header-collector.png) |
 
 ## Instalación
 
