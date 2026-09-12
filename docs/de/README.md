@@ -6,7 +6,6 @@ Mobilfreundliche Verbesserungen für das Web-Profil von [DeepSeek Harness](https
 
 ## Was Sie bekommen
 
-- **Anhang-Upload im Composer** — ein Büroklammer-Button neben der Werkzeugzeile des Composers. Bilder gehen über den nativen Einfüge-Pfad des Editors; jede andere Datei wird auf den Server geladen und ihr absoluter Pfad in den Entwurf eingefügt, damit der Agent sie mit seinen Datei-Werkzeugen lesen kann.
 - **Neustart-Zeile** — ein Eintrag „Dienst neu starten" unter Einstellungen → Allgemein. Fragt zuerst nach, startet den `dsh`-Prozess neu und lädt die Seite automatisch neu, sobald der Dienst wieder antwortet.
 - **Eingabemodalitäts-Schalter** — Text/Bild/Video-Kontrollkästchen an jeder Modellzeile des nativen Provider-Editors, die das `input`-Array des Modells in die `settings.yaml` zurückschreibt (mit Sicherung neben der Datei). Katalogmodelle ohne benutzerdefinierte Route zeigen die Schalter nur lesend.
 - **Drawer für schmale Bildschirme** — unter 1024px schrumpft die Seitenleiste zu einem kleinen Eck-Chip, der den eigenen Umschalter des Hosts behält; ausgeklappt schwebt die volle Seitenleiste als Drawer über dem Inhalt in voller Breite, und die Wahl einer Sitzung schließt ihn wieder. Chip und Drawer werden atomar getauscht (keine Geometrie-Animation, die auf einem ausgelasteten Main-Thread einfrieren kann), und ein Tippen, das den Drawer schließt, klappt ihn im selben Frame ein, statt auf das erneute Rendern des Hosts zu warten — so kann ein Telefon mit vielen laufenden Sitzungen den Drawer nicht halb ausgeklappt zurücklassen, und der geschlossene Chip liegt nie weiß über einer Leiste, die der Host bereits geleert hat.
@@ -24,12 +23,11 @@ Mobilfreundliche Verbesserungen für das Web-Profil von [DeepSeek Harness](https
 
 ## Screenshots
 
-Schwebender Chip, Session-Drawer, Einstellungs-Tabs auf schmalen Bildschirmen und der Anhang-Button im Composer (mit Beschriftung):
+Schwebender Chip und Session-Drawer (mit Beschriftung):
 
 | | |
 |---|---|
 | ![Schwebender Chip](../../res/shot-floating-chip.png) | ![Session-Drawer](../../res/shot-drawer.png) |
-| ![Einstellungs-Tabs](../../res/shot-settings-tabs.png) | ![Anhang-Button](../../res/shot-composer-attach.png) |
 
 ## Installation
 
@@ -37,9 +35,9 @@ Schwebender Chip, Session-Drawer, Einstellungs-Tabs auf schmalen Bildschirmen un
 dsh plugin --profile web add dsh-mobile-upgrade
 ```
 
-Starten Sie `dsh web` neu und öffnen Sie das Web-Profil auf dem Telefon: Die Büroklammer sitzt im Composer, die Neustart-Zeile unter Einstellungen → Allgemein und die Funktionsschalter unter Einstellungen → Plugins → dsh-mobile-upgrade.
+Starten Sie `dsh web` neu und öffnen Sie das Web-Profil auf dem Telefon: Die Neustart-Zeile findet sich unter Einstellungen → Allgemein und die Funktionsschalter unter Einstellungen → Plugins → dsh-mobile-upgrade. Anhänge kommen aus dem eigenen Anhang-System des Composer des Hosts.
 
-Erfordert `dsh` 0.1.2-rc.1 oder neuer.
+Erfordert `dsh` 0.1.5-rc.1 oder neuer (das eingebaute Anhang-System des Hosts hat die Upload-Funktion dieses Plugins ersetzt).
 
 ## Konfiguration
 
@@ -47,12 +45,11 @@ Die Einstellungskarte des Plugins nimmt:
 
 | Schlüssel | Standard | Bedeutung |
 |---|---|---|
-| `uploadDir` | `<dsh home>/mobile-uploads` | Speicherort für Uploads, die keine Bilder sind |
 | `restartEnabled` | `true` | Neustart-Zeile und ihre Route anbieten |
 
 ## Funktionsschalter
 
-Jede der obigen Funktionen lässt sich unter Einstellungen → Plugins → dsh-mobile-upgrade umschalten (wirksam beim nächsten Laden der Seite) oder pro Gerät mit einem `localStorage`-Schlüssel überschreiben — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus`, `mfx-net`, `mfx-questions`, `mfx-selfupdate`, `mfx-agents`, `mfx-header`, `mfx-listthrottle` — wobei der Wert `"0"` die Funktion ausschaltet.
+Jede der obigen Funktionen lässt sich unter Einstellungen → Plugins → dsh-mobile-upgrade umschalten (wirksam beim nächsten Laden der Seite) oder pro Gerät mit einem `localStorage`-Schlüssel überschreiben — `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus`, `mfx-net`, `mfx-questions`, `mfx-selfupdate`, `mfx-agents`, `mfx-header`, `mfx-listthrottle` — wobei der Wert `"0"` die Funktion ausschaltet.
 
 ## Bekannte Einschränkungen
 
@@ -62,7 +59,7 @@ Jede der obigen Funktionen lässt sich unter Einstellungen → Plugins → dsh-m
 
 ## Sicherheitshinweise
 
-Die HTTP-Routen des Plugins (Upload, Neustart, Einstellungsänderungen) nehmen keine eigene Authentifizierung vor — sie vertrauen der `dsh`-Web-Oberfläche, in die sie geladen werden. Bevor Sie die Bereitstellung über localhost hinaus freigeben, stellen Sie sie hinter dieselbe Schranke wie den Rest der Oberfläche (Reverse-Proxy-Auth, Loopback-Bindung).
+Die HTTP-Routen des Plugins (Neustart, Einstellungsänderungen) nehmen keine eigene Authentifizierung vor — sie vertrauen der `dsh`-Web-Oberfläche, in die sie geladen werden. Bevor Sie die Bereitstellung über localhost hinaus freigeben, stellen Sie sie hinter dieselbe Schranke wie den Rest der Oberfläche (Reverse-Proxy-Auth, Loopback-Bindung).
 
 ## Community-Links
 

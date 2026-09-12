@@ -6,7 +6,6 @@ Mobile quality-of-life fixes for the [DeepSeek Harness](https://github.com/deeps
 
 ## What you get
 
-- **Composer attachment upload** — a paperclip button beside the composer's tool row. Images go through the editor's native paste-attachment path; any other file is uploaded to the server and its absolute path is pasted into the draft so the agent can read it with its file tools.
 - **Restart row** — a "Restart service" entry in Settings → General. Confirms first, restarts the `dsh` process, and reloads the page automatically once the service answers again.
 - **Input-modality switches** — text/image/video checkboxes on every model row of the native provider editor, writing the model's `input` array into `settings.yaml` (with a backup next to the file). Catalog models without a user-customised route show the switches read-only.
 - **Narrow-screen drawer** — below 1024px the sidebar collapses to a small corner chip that keeps the host's own toggle; expanding it floats the full sidebar as a drawer over full-width content, and picking a session closes it again. The chip and the drawer swap atomically (no geometry animation to freeze on a busy main thread), and a tap that closes the drawer collapses it in that same frame instead of waiting for the host's re-render — so a phone running many sessions cannot strand the drawer half-expanded, and the closed chip never sits white over a rail the host has already emptied.
@@ -24,12 +23,11 @@ Mobile quality-of-life fixes for the [DeepSeek Harness](https://github.com/deeps
 
 ## Screenshots
 
-The floating chip, the session drawer, the narrow-screen settings tabs and the composer attach button (annotated):
+The floating chip and the session drawer (annotated):
 
 | | |
 |---|---|
 | ![Floating chip](res/shot-floating-chip.png) | ![Session drawer](res/shot-drawer.png) |
-| ![Settings tabs](res/shot-settings-tabs.png) | ![Composer attach](res/shot-composer-attach.png) |
 
 ## Install
 
@@ -37,9 +35,9 @@ The floating chip, the session drawer, the narrow-screen settings tabs and the c
 dsh plugin --profile web add dsh-mobile-upgrade
 ```
 
-Restart `dsh web`, then open the web profile on your phone: the paperclip sits in the composer, the restart row in Settings → General, and the feature toggles in Settings → Plugins → dsh-mobile-upgrade.
+Restart `dsh web`, then open the web profile on your phone: the restart row sits in Settings → General and the feature toggles in Settings → Plugins → dsh-mobile-upgrade. Attachments come from the host's own composer attachment system.
 
-Requires `dsh` 0.1.2-rc.1 or newer.
+Requires `dsh` 0.1.5-rc.1 or newer (the host's built-in attachment system replaced this plugin's upload feature).
 
 ## Configuration
 
@@ -47,12 +45,11 @@ The plugin's settings card takes:
 
 | Key | Default | Meaning |
 |---|---|---|
-| `uploadDir` | `<dsh home>/mobile-uploads` | Where non-image uploads are stored |
 | `restartEnabled` | `true` | Offer the restart row and its route |
 
 ## Feature toggles
 
-Every feature above can be switched in Settings → Plugins → dsh-mobile-upgrade (effective on the next page load), or overridden per device with a `localStorage` key — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus`, `mfx-net`, `mfx-questions`, `mfx-selfupdate`, `mfx-agents`, `mfx-header`, `mfx-listthrottle` — where the value `"0"` turns a feature off.
+Every feature above can be switched in Settings → Plugins → dsh-mobile-upgrade (effective on the next page load), or overridden per device with a `localStorage` key — `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus`, `mfx-net`, `mfx-questions`, `mfx-selfupdate`, `mfx-agents`, `mfx-header`, `mfx-listthrottle` — where the value `"0"` turns a feature off.
 
 ## Limitations
 
@@ -62,7 +59,7 @@ Every feature above can be switched in Settings → Plugins → dsh-mobile-upgra
 
 ## Security notes
 
-The plugin's HTTP routes (upload, restart, settings editing) perform no authentication of their own — they trust the `dsh` web surface they are loaded into. Put the deployment behind whatever gate protects the rest of the UI (reverse-proxy auth, loopback binding) before exposing it beyond localhost.
+The plugin's HTTP routes (restart, settings editing) perform no authentication of their own — they trust the `dsh` web surface they are loaded into. Put the deployment behind whatever gate protects the rest of the UI (reverse-proxy auth, loopback binding) before exposing it beyond localhost.
 
 ## Community Links
 

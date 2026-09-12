@@ -6,7 +6,6 @@ Améliorations mobiles pour le profil web de [DeepSeek Harness](https://github.c
 
 ## Ce que vous obtenez
 
-- **Envoi de pièces jointes dans le composer** — un bouton trombone à côté de la rangée d'outils du composer. Les images passent par le chemin natif de pièce jointe collée de l'éditeur ; tout autre fichier est envoyé au serveur et son chemin absolu est collé dans le brouillon pour que l'agent puisse le lire avec ses outils de fichiers.
 - **Ligne de redémarrage** — une entrée « Redémarrer le service » dans Paramètres → Général. Demande d'abord confirmation, redémarre le processus `dsh`, puis recharge la page automatiquement dès que le service répond à nouveau.
 - **Commutateurs de modalité d'entrée** — cases à cocher text/image/video sur chaque ligne de modèle de l'éditeur de fournisseur natif, écrivant le tableau `input` du modèle dans `settings.yaml` (avec sauvegarde à côté du fichier). Les modèles de catalogue sans route personnalisée affichent les commutateurs en lecture seule.
 - **Tiroir pour écrans étroits** — en dessous de 1024px, la barre latérale se réduit en une petite pastille d'angle qui conserve le bouton de l'hôte ; dépliée, la barre complète flotte en tiroir au-dessus du contenu pleine largeur, et choisir une session la referme. La pastille et le tiroir permutent de façon atomique (aucune animation de géométrie susceptible de se figer lorsque le thread principal est occupé), et un appui qui ferme le tiroir le replie dans cette même frame au lieu d'attendre le nouveau rendu de l'hôte — de sorte qu'un téléphone faisant tourner de nombreuses sessions ne peut pas laisser le tiroir coincé à moitié déplié, et la pastille fermée ne reste jamais blanche au-dessus d'un rail que l'hôte a déjà vidé.
@@ -24,12 +23,11 @@ Améliorations mobiles pour le profil web de [DeepSeek Harness](https://github.c
 
 ## Captures d'écran
 
-La pastille flottante, le tiroir de sessions, les onglets de paramètres sur écran étroit et le bouton de pièces jointes du composer (annotés) :
+La pastille flottante et le tiroir de sessions (annotés) :
 
 | | |
 |---|---|
 | ![Pastille flottante](../../res/shot-floating-chip.png) | ![Tiroir de sessions](../../res/shot-drawer.png) |
-| ![Onglets de paramètres](../../res/shot-settings-tabs.png) | ![Pièces jointes](../../res/shot-composer-attach.png) |
 
 ## Installation
 
@@ -37,9 +35,9 @@ La pastille flottante, le tiroir de sessions, les onglets de paramètres sur éc
 dsh plugin --profile web add dsh-mobile-upgrade
 ```
 
-Redémarrez `dsh web`, puis ouvrez le profil web sur votre téléphone : le trombone se trouve dans le composer, la ligne de redémarrage dans Paramètres → Général, et les interrupteurs dans Paramètres → Plugins → dsh-mobile-upgrade.
+Redémarrez `dsh web`, puis ouvrez le profil web sur votre téléphone : la ligne de redémarrage se trouve dans Paramètres → Général et les interrupteurs dans Paramètres → Plugins → dsh-mobile-upgrade. Les pièces jointes viennent du système d'attachement natif du composer de l'hôte.
 
-Nécessite `dsh` 0.1.2-rc.1 ou plus récent.
+Nécessite `dsh` 0.1.5-rc.1 ou plus récent (le système d'attachement intégré de l'hôte remplace la fonction d'envoi de ce plugin).
 
 ## Configuration
 
@@ -47,12 +45,11 @@ La carte de paramètres du plugin accepte :
 
 | Clé | Par défaut | Signification |
 |---|---|---|
-| `uploadDir` | `<dsh home>/mobile-uploads` | Où sont stockés les envois autres que des images |
 | `restartEnabled` | `true` | Proposer la ligne de redémarrage et sa route |
 
 ## Commutateurs par fonction
 
-Chaque fonction ci-dessus peut être activée ou désactivée dans Paramètres → Plugins → dsh-mobile-upgrade (effectif au prochain chargement de la page), ou remplacée par appareil avec une clé `localStorage` — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus`, `mfx-net`, `mfx-questions`, `mfx-selfupdate`, `mfx-agents`, `mfx-header`, `mfx-listthrottle` — dont la valeur `"0"` désactive la fonction.
+Chaque fonction ci-dessus peut être activée ou désactivée dans Paramètres → Plugins → dsh-mobile-upgrade (effectif au prochain chargement de la page), ou remplacée par appareil avec une clé `localStorage` — `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus`, `mfx-net`, `mfx-questions`, `mfx-selfupdate`, `mfx-agents`, `mfx-header`, `mfx-listthrottle` — dont la valeur `"0"` désactive la fonction.
 
 ## Limitations connues
 
@@ -62,7 +59,7 @@ Chaque fonction ci-dessus peut être activée ou désactivée dans Paramètres �
 
 ## Notes de sécurité
 
-Les routes HTTP du plugin (envoi, redémarrage, édition des paramètres) n'effectuent aucune authentification propre — elles font confiance à la surface web de `dsh` dans laquelle elles sont chargées. Avant toute exposition au-delà de localhost, placez le déploiement derrière la même barrière que le reste de l'interface (authentification par proxy inverse, écoute en loopback).
+Les routes HTTP du plugin (redémarrage, édition des paramètres) n'effectuent aucune authentification propre — elles font confiance à la surface web de `dsh` dans laquelle elles sont chargées. Avant toute exposition au-delà de localhost, placez le déploiement derrière la même barrière que le reste de l'interface (authentification par proxy inverse, écoute en loopback).
 
 ## Liens communautaires
 

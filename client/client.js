@@ -11,41 +11,35 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	// The build this bundle is. Kept in step with package.json by
 	// scripts/check-manifest.mjs, and surfaced in the settings row plus the
 	// self-update banner below so a device can always say what it runs.
-	var BUILD = "0.7.1";
+	var BUILD = "0.8.0";
 
 	// Everything this plugin renders lives inside native host slots — no
 	// fixed-position body elements, no CSS overrides, no DOM polling.
 	//
-	//   1. 📎 upload button in the composer's native "conversation.input.left"
-	//      slot, wearing the InputBar's own button class (uV2eYG_add) so it is
-	//      pixel-identical to the neighbouring + control.
-	//      images → synthetic paste event into the Lexical editor (the
-	//      engine's own image-attachment path); other files → POST to the
-	//      host route, the returned absolute path is pasted in as text.
-	//   2. settings extras: ⟳ restart row in the General tab, and the
+	//   1. settings extras: ⟳ restart row in the General tab, and the
 	//      models/providers editor in the Models tab (localized labels).
-	//   3. narrow-screen settle: the fullscreen tool-details overlay — whose
+	//   2. narrow-screen settle: the fullscreen tool-details overlay — whose
 	//      close button is inert upstream — is not rendered on narrow screens.
-//   4. narrow drawer: the collapsed rail keeps only the whale toggle;
+//   3. narrow drawer: the collapsed rail keeps only the whale toggle;
 //      the expanded sidebar floats above full-width content as a drawer
 //      (the whale is the host's own toggle, hHd-Xa_collapsed is the state).
 //      The takeover flips atomically — no geometry transition to freeze on a
 //      busy main thread — and a tap that closes it moves the geometry in the
 //      same frame instead of waiting for the host's re-render.
-//   5. narrow settings: the dialog's side nav becomes horizontal top tabs.
-//   6. narrow model menu: the composer's model menu lands full-width.
-//   7. network chip: a slot chip next to the paperclip surfaces /api/
+//   4. narrow settings: the dialog's side nav becomes horizontal top tabs.
+//   5. narrow model menu: the composer's model menu lands full-width.
+//   6. network chip: a slot chip next to the composer controls surfaces /api/
 //      requests that hang or fail; tapping it probes the service's ping
 //      route to tell a slow route from a deadlocked host.
-//   8. narrow question card: the pending-question takeover's question is
+//   7. narrow question card: the pending-question takeover's question is
 //      capped into its own scroll region, so a long question can no longer
 //      push the choices — and, on small viewports, the submit row and the
 //      minimize/close buttons — outside the card's clipped height.
-//   9. self-update: a phone tab can sit on a cached page for days, and the
+//   8. self-update: a phone tab can sit on a cached page for days, and the
 //      bundle is served immutable per revision, so the page compares the
 //      revision it booted with against the one the server advertises now and
 //      reloads itself (idle, or through a banner it can tap).
-//  10. storm throttle: many sessions streaming at once (or the replay
+//   9. storm throttle: many sessions streaming at once (or the replay
 //      burst right after a reconnect) mutates the document per token, so
 //      the document-wide observers run at a capped leading+trailing rate,
 //      the settings poller backs off while the host is unreachable, and a
@@ -56,26 +50,26 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //      collapsed/expanded frame cannot move the takeover, and drawer close
 //      taps (the whale, the scrim, a session row) collapse it on the spot and
 //      then chase the host's toggle only if its own state has not followed.
-// 11. agents guard: the host serves the subagent catalog by enumerating the
+// 10. agents guard: the host serves the subagent catalog by enumerating the
 //      ENTIRE session corpus per request (~1s at a 2400-session history),
 //      and its client fires one on every selection, hover-open, and
 //      membership event while a catalog menu is open. The guard wraps the
 //      refresh choke point: childless parents (per the live list) are never
 //      asked, a parent is re-asked at most once per 2.5s, and refresh
 //      starts are spaced 350ms apart.
-// 12. desktop lineage click: the host's subagent chips open on hover only —
+// 11. desktop lineage click: the host's subagent chips open on hover only —
 //      the count trigger carries no onClick, so a click does nothing. A
 //      capture click shim translates a tap on a chip into the
 //      mouseover/mouseout pair the host's own hover machinery already
 //      understands, making click a proper toggle (ancestor crumbs keep
 //      their navigate click).
-// 13. narrow header collector: below 1024px the header's chips (lineage,
+// 12. narrow header collector: below 1024px the header's chips (lineage,
 //      jobs, preset) are wider than the phone and hover-only. They fold
 //      into one pill (title + agent/job badges); tapping it opens a
 //      full-width sheet with the lineage, the live subagent tree (rows
 //      from the session list; branches fetch their catalog on demand,
 //      guarded), and this session's background jobs.
-// 14. list render throttle: the host's control stream pushes a whole-value
+// 13. list render throttle: the host's control stream pushes a whole-value
 //      projection frame for EVERY projection change of EVERY attached
 //      session — a running subagent's timing view changes on each
 //      committed event, so a busy background fleet emits 50-150 frames/s.
@@ -89,7 +83,6 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //      stays interactive no matter how hard the background streams.
 //
 // Optional features are toggled with localStorage keys (value "0" = off):
-//   mfx-attach   (default on) — the 📎 upload button
 //   mfx-restart  (default on) — the ⟳ restart button
 //   mfx-settle   (default on) — the details-overlay settle
 //   mfx-drawer   (default on) — the whale-only rail + overlay drawer
@@ -109,7 +102,6 @@ var namespaceRevision;
 var sectionListeners = [];
 var loadNamespaceFlags = function () {};
 var NAMESPACE_FLAG_KEYS = {
-	attach: "attachEnabled",
 	restart: "restartEnabled",
 	settle: "settleEnabled",
 	drawer: "drawerEnabled",
@@ -226,54 +218,7 @@ function flag(name, dflt) {
 			document.head.appendChild(dstyle2);
 		}
 
-		// ---------- shared composer helpers (used only inside click handlers) ----------
-		function findComposerEditor() {
-			var candidates = document.querySelectorAll('[contenteditable="true"]');
-			for (var i = 0; i < candidates.length; i++) {
-				var rect = candidates[i].getBoundingClientRect();
-				if (rect.width > 80 && rect.bottom > window.innerHeight * 0.3) return candidates[i];
-			}
-			return null;
-		}
-
-		function pasteIntoComposer(transfer) {
-			var editor = findComposerEditor();
-			if (!editor) return false;
-			editor.focus();
-			var ev = new ClipboardEvent("paste", { clipboardData: transfer, bubbles: true, cancelable: true });
-			editor.dispatchEvent(ev);
-			return true;
-		}
-
-		function insertFileIntoComposer(file) {
-			var dt = new DataTransfer();
-			dt.items.add(file);
-			return pasteIntoComposer(dt);
-		}
-
-		function insertTextIntoComposer(text) {
-			var dt = new DataTransfer();
-			dt.setData("text/plain", text);
-			return pasteIntoComposer(dt);
-		}
-
-		function uploadToHost(file) {
-			return new Promise(function (resolve, reject) {
-				var xhr = new XMLHttpRequest();
-				xhr.open("POST", ROUTE_PREFIX + "/upload?filename=" + encodeURIComponent(file.name));
-				xhr.setRequestHeader("content-type", "application/octet-stream");
-				xhr.onload = function () {
-					try {
-						var data = JSON.parse(xhr.responseText);
-						if (xhr.status === 200 && data.ok) resolve(data.path);
-						else reject(new Error(data.error || ("HTTP " + xhr.status)));
-					} catch (e) { reject(e); }
-				};
-				xhr.onerror = function () { reject(new Error("network")); };
-				xhr.send(file);
-			});
-		}
-
+		// ---------- shared toast (used by the network chip below) ----------
 		var toastEl = null;
 		function toast(text) {
 			if (!toastEl) {
@@ -288,84 +233,6 @@ function flag(name, dflt) {
 			toastEl.style.display = "block";
 			clearTimeout(toastEl._t);
 			toastEl._t = setTimeout(function () { toastEl.style.display = "none"; }, 2200);
-		}
-
-		function handleFiles(files) {
-			var list = Array.prototype.slice.call(files ?? []);
-			var index = 0;
-			var next = function () {
-				if (index >= list.length) return;
-				var file = list[index++];
-				// some phone gallery pickers hand images over with an empty
-				// mime type — fall back to the extension
-				var looksImage = (file.type && file.type.indexOf("image/") === 0) ||
-					/\.(png|jpe?g|gif|webp|bmp)$/i.test(file.name || "");
-				if (looksImage) {
-					toast(insertFileIntoComposer(file) ? "✓ " + file.name : "✗ " + file.name);
-					setTimeout(next, 350);
-					return;
-				}
-				toast("↑ " + file.name);
-				uploadToHost(file).then(function (path) {
-					var ok = insertTextIntoComposer(path);
-					toast((ok ? "✓ " : "✗ ") + file.name);
-					setTimeout(next, 350);
-				}).catch(function (err) {
-					toast("✗ " + file.name + ": " + err.message);
-					setTimeout(next, 1200);
-				});
-			};
-			next();
-		}
-
-		// ---------- 2. 📎 composer attach — native conversation.input.left slot ----------
-		if (flag("attach", true)) {
-			function PaperclipIcon() {
-				return React.createElement(
-					"svg",
-					{ width: "16", height: "16", viewBox: "0 0 24 24", fill: "none",
-					  stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round",
-					  strokeLinejoin: "round", "aria-hidden": "true" },
-					React.createElement("path", { d: "m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" })
-				);
-			}
-
-			function AttachButton() {
-				return React.createElement(
-					"span",
-					{ style: { display: "contents" } },
-					React.createElement("input", {
-						type: "file",
-						multiple: true,
-						style: { display: "none" },
-						onChange: function (ev) {
-							handleFiles(ev.target.files);
-							ev.target.value = "";
-						}
-					}),
-					React.createElement(
-						"button",
-						{
-							type: "button",
-							className: "uV2eYG_add",
-							title: "上传附件（图片走粘贴附件，其他文件存服务器并插入路径）",
-							"aria-label": "上传附件",
-							onClick: function (ev) {
-								var input = ev.currentTarget.previousElementSibling;
-								if (input && input.click) input.click();
-							}
-						},
-						React.createElement(PaperclipIcon)
-					)
-				);
-			}
-
-			ctx.slots.inject("conversation.input.left", function () {
-				return ctx.slots.register(
-					{ name: "conversation.input.left", id: "mfx-attach", label: function () { return "附件"; } },
-					function () { return React.createElement(AttachButton, null); }
-				);
-			});
 		}
 
 		// ---------- 3. ⟳ restart — a settings.general.item row in the General tab ----------
@@ -1176,7 +1043,7 @@ function flag(name, dflt) {
 		// (e.g. /api/session/list) can hang without any UI feedback, leaving
 		// "is the service dead or is this route slow" unanswerable. A thin
 		// wrapper around window.fetch tracks in-flight /api/ requests; a
-		// compact chip next to the paperclip appears only when a request
+		// compact chip next to the composer controls appears only when a request
 		// crosses the stuck threshold or fails outright. Tapping it runs a
 		// liveness probe against the plugin's ping route to separate "the
 		// service is alive, this route is slow" from "the host is not
@@ -1230,8 +1097,7 @@ function flag(name, dflt) {
 				};
 			}
 			function netToast(text) {
-				// toast() lives in the attach block; only delegate when enabled
-				if (typeof toast === "function") toast(text);
+				toast(text);
 			}
 			function netProbe() {
 				var t0 = Date.now();
@@ -1251,7 +1117,7 @@ function flag(name, dflt) {
 			// The chip is plain DOM, not a slot component: when /api/ hangs the
 			// host stops re-rendering entirely, so a React seat would never
 			// refresh exactly when it matters. Our own ticker owns the element,
-			// re-anchoring it beside the paperclip after host re-renders.
+			// re-anchoring it beside the composer controls after host re-renders.
 			var netChip = null;
 			function netChipTick() {
 				var now = Date.now();
