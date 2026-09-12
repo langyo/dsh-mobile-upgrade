@@ -23,11 +23,12 @@ Mobile quality-of-life fixes for the [DeepSeek Harness](https://github.com/deeps
 
 ## Screenshots
 
-The floating chip and the session drawer (annotated):
+The floating chip, the session drawer, the narrow-screen settings tabs and the narrow-header collector (annotated):
 
 | | |
 |---|---|
 | ![Floating chip](res/shot-floating-chip.png) | ![Session drawer](res/shot-drawer.png) |
+| ![Settings tabs](res/shot-settings-tabs.png) | ![Header collector](res/shot-header-collector.png) |
 
 ## Install
 

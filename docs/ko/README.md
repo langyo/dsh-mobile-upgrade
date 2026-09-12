@@ -23,11 +23,12 @@
 
 ## 스크린샷
 
-플로팅 칩과 세션 드로어(주석 포함):
+플로팅 칩, 세션 드로어, 좁은 화면 설정 탭, 좁은 화면 헤더 수집기(주석 포함):
 
 | | |
 |---|---|
 | ![플로팅 칩](../../res/shot-floating-chip.png) | ![세션 드로어](../../res/shot-drawer.png) |
+| ![설정 탭](../../res/shot-settings-tabs.png) | ![헤더 수집기](../../res/shot-header-collector.png) |
 
 ## 설치
 

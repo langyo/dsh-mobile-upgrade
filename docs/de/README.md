@@ -23,11 +23,12 @@ Mobilfreundliche Verbesserungen für das Web-Profil von [DeepSeek Harness](https
 
 ## Screenshots
 
-Schwebender Chip und Session-Drawer (mit Beschriftung):
+Schwebender Chip, Session-Drawer, Einstellungen als Tabs auf schmalen Bildschirmen und der Header-Collector (mit Beschriftung):
 
 | | |
 |---|---|
 | ![Schwebender Chip](../../res/shot-floating-chip.png) | ![Session-Drawer](../../res/shot-drawer.png) |
+| ![Einstellungen-Tabs](../../res/shot-settings-tabs.png) | ![Header-Collector](../../res/shot-header-collector.png) |
 
 ## Installation
 

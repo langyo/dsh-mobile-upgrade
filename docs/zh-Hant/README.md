@@ -23,11 +23,12 @@
 
 ## 截圖
 
-懸浮球與側欄抽屜（含標註）：
+懸浮球、側欄抽屜、窄螢幕設定標籤與窄螢幕頭部收納器（含標註）：
 
 | | |
 |---|---|
-| ![懸浮球](../../res/shot-floating-chip.png) | ![側欄抽屉](../../res/shot-drawer.png) |
+| ![懸浮球](../../res/shot-floating-chip.png) | ![側欄抽屜](../../res/shot-drawer.png) |
+| ![窄螢幕設定標籤](../../res/shot-settings-tabs.png) | ![窄螢幕頭部收納器](../../res/shot-header-collector.png) |
 
 ## 安裝
 
