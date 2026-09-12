@@ -6,7 +6,6 @@ Mejoras de calidad de vida para móviles en el perfil web de [DeepSeek Harness](
 
 ## Qué incluye
 
-- **Subida de adjuntos en el compositor** — un botón de clip junto a la fila de herramientas del compositor. Las imágenes pasan por la ruta nativa de adjuntos por pegado del editor; cualquier otro archivo se sube al servidor y su ruta absoluta se pega en el borrador para que el agente pueda leerlo con sus herramientas de archivos.
 - **Fila de reinicio** — una entrada "Reiniciar servicio" en Ajustes → General. Pide confirmación, reinicia el proceso de `dsh` y recarga la página automáticamente cuando el servicio vuelve a responder.
 - **Interruptores de modalidad de entrada** — casillas text/image/video en cada fila de modelo del editor de proveedores nativo, que escriben el array `input` del modelo en `settings.yaml` (con copia de seguridad junto al archivo). Los modelos de catálogo sin una ruta personalizada muestran los interruptores en solo lectura.
 - **Cajón para pantallas estrechas** — por debajo de 1024px la barra lateral se reduce a un pequeño chip en la esquina que conserva el toggle del propio host; al expandirla, la barra completa flota como un cajón sobre el contenido a ancho completo, y al elegir una sesión vuelve a cerrarse. El chip y el cajón se intercambian de forma atómica (sin animación de geometría que pueda congelarse cuando el hilo principal está ocupado), y un toque que cierra el cajón lo contrae en ese mismo fotograma en lugar de esperar a que el host vuelva a renderizar — de modo que un teléfono que ejecuta muchas sesiones a la vez no puede dejar el cajón atascado a medio expandir, y el chip cerrado nunca se queda en blanco sobre un raíl que el host ya ha vaciado.
@@ -24,12 +23,11 @@ Mejoras de calidad de vida para móviles en el perfil web de [DeepSeek Harness](
 
 ## Capturas de pantalla
 
-El chip flotante, el cajón de sesiones, las pestañas de ajustes en pantallas estrechas y el botón de adjuntos del compositor (anotados):
+El chip flotante y el cajón de sesiones (anotados):
 
 | | |
 |---|---|
 | ![Chip flotante](../../res/shot-floating-chip.png) | ![Cajón de sesiones](../../res/shot-drawer.png) |
-| ![Pestañas de ajustes](../../res/shot-settings-tabs.png) | ![Adjuntos](../../res/shot-composer-attach.png) |
 
 ## Instalación
 
@@ -37,9 +35,9 @@ El chip flotante, el cajón de sesiones, las pestañas de ajustes en pantallas e
 dsh plugin --profile web add dsh-mobile-upgrade
 ```
 
-Reinicie `dsh web` y abra el perfil web en su teléfono: el clip aparece en el compositor, la fila de reinicio en Ajustes → General y los interruptores en Ajustes → Plugins → dsh-mobile-upgrade.
+Reinicie `dsh web` y abra el perfil web en su teléfono: la fila de reinicio aparece en Ajustes → General y los interruptores en Ajustes → Plugins → dsh-mobile-upgrade. Los adjuntos usan el sistema de adjuntos propio del compositor del host.
 
-Requiere `dsh` 0.1.2-rc.1 o posterior.
+Requiere `dsh` 0.1.5-rc.1 o posterior (el sistema de adjuntos integrado del host reemplazó la función de subida de este plugin).
 
 ## Configuración
 
@@ -47,12 +45,11 @@ La tarjeta de ajustes del plugin admite:
 
 | Clave | Por defecto | Significado |
 |---|---|---|
-| `uploadDir` | `<dsh home>/mobile-uploads` | Dónde se guardan las subidas que no son imágenes |
 | `restartEnabled` | `true` | Ofrecer la fila de reinicio y su ruta |
 
 ## Interruptores por función
 
-Cada función anterior puede activarse o desactivarse en Ajustes → Plugins → dsh-mobile-upgrade (surte efecto en la siguiente carga de la página), o anularse por dispositivo con una clave de `localStorage` — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus`, `mfx-net`, `mfx-questions`, `mfx-selfupdate`, `mfx-agents`, `mfx-header`, `mfx-listthrottle` — donde el valor `"0"` desactiva la función.
+Cada función anterior puede activarse o desactivarse en Ajustes → Plugins → dsh-mobile-upgrade (surte efecto en la siguiente carga de la página), o anularse por dispositivo con una clave de `localStorage` — `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus`, `mfx-net`, `mfx-questions`, `mfx-selfupdate`, `mfx-agents`, `mfx-header`, `mfx-listthrottle` — donde el valor `"0"` desactiva la función.
 
 ## Limitaciones conocidas
 
@@ -62,7 +59,7 @@ Cada función anterior puede activarse o desactivarse en Ajustes → Plugins →
 
 ## Notas de seguridad
 
-Las rutas HTTP del plugin (subida, reinicio, edición de ajustes) no realizan autenticación propia — confían en la superficie web de `dsh` en la que se cargan. Antes de exponerlo más allá de localhost, colóquelo tras la misma barrera que protege el resto de la interfaz (autenticación en proxy inverso, enlace a loopback).
+Las rutas HTTP del plugin (reinicio, edición de ajustes) no realizan autenticación propia — confían en la superficie web de `dsh` en la que se cargan. Antes de exponerlo más allá de localhost, colóquelo tras la misma barrera que protege el resto de la interfaz (autenticación en proxy inverso, enlace a loopback).
 
 ## Enlaces de la comunidad
 

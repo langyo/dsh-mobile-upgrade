@@ -6,7 +6,6 @@
 
 ## 제공되는 기능
 
-- **컴포저 첨부 업로드** — 컴포저 도구 행 옆에 클립 버튼을 추가합니다. 이미지는 편집기의 네이티브 붙여넣기 첨부 경로를 거치고, 그 외 파일은 서버로 업로드된 뒤 절대 경로가 초안에 붙여넣어져 에이전트가 파일 도구로 읽을 수 있습니다.
 - **재시작 행** — 설정 → 일반에 "서비스 재시작" 항목을 추가합니다. 먼저 확인한 뒤 `dsh` 프로세스를 재시작하고, 서비스가 다시 응답하면 페이지를 자동으로 새로 고칩니다.
 - **입력 모달리티 스위치** — 네이티브 프로바이더 편집 폼의 각 모델 행에 text/image/video 체크박스를 추가하여 모델의 `input` 배열을 `settings.yaml`에 기록합니다(파일 옆에 백업 생성). 사용자가 커스터마이즈하지 않은 카탈로그 모델은 읽기 전용으로 표시됩니다.
 - **좁은 화면 드로어** — 1024px 이하에서 사이드바는 호스트 자체 토글을 유지하는 작은 코너 칩으로 줄어듭니다. 펼치면 전체 사이드바가 전체 폭 콘텐츠 위에 드로어로 떠 오르고, 세션을 고르면 다시 닫힙니다. 칩과 드로어는 원자적으로 교체되며(메인 스레드가 바쁠 때 멈춰 버릴 지오메트리 애니메이션이 없습니다), 드로어를 닫는 탭은 호스트의 리렌더링을 기다리지 않고 같은 프레임에서 접습니다 — 따라서 많은 세션을 돌리는 휴대폰에서도 드로어가 반쯤 펼쳐진 채 남지 않고, 닫힌 칩이 호스트가 이미 비운 레일 위에 하얗게 남는 일도 없습니다.
@@ -24,12 +23,11 @@
 
 ## 스크린샷
 
-플로팅 칩, 세션 드로어, 좁은 화면 설정 탭, 컴포저 첨부 버튼(주석 포함):
+플로팅 칩과 세션 드로어(주석 포함):
 
 | | |
 |---|---|
 | ![플로팅 칩](../../res/shot-floating-chip.png) | ![세션 드로어](../../res/shot-drawer.png) |
-| ![설정 탭](../../res/shot-settings-tabs.png) | ![첨부 버튼](../../res/shot-composer-attach.png) |
 
 ## 설치
 
@@ -37,9 +35,9 @@
 dsh plugin --profile web add dsh-mobile-upgrade
 ```
 
-`dsh web`을 재시작한 뒤 휴대폰에서 웹 프로파일을 열면: 클립은 컴포저에, 재시작 행은 설정 → 일반에, 기능 토글은 설정 → 플러그인 → dsh-mobile-upgrade에 있습니다.
+`dsh web`을 재시작한 뒤 휴대폰에서 웹 프로파일을 열면: 재시작 행은 설정 → 일반에, 기능 토글은 설정 → 플러그인 → dsh-mobile-upgrade에 있습니다. 첨부 파일은 호스트 컴포저의 기본 첨부 시스템을 사용합니다.
 
-`dsh` 0.1.2-rc.1 이상이 필요합니다.
+`dsh` 0.1.5-rc.1 이상이 필요합니다(호스트 내장 첨부 시스템이 이 플러그인의 업로드 기능을 대체했습니다).
 
 ## 설정
 
@@ -47,12 +45,11 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 | 키 | 기본값 | 의미 |
 |---|---|---|
-| `uploadDir` | `<dsh home>/mobile-uploads` | 이미지가 아닌 업로드 파일의 저장 위치 |
 | `restartEnabled` | `true` | 재시작 행과 해당 라우트 제공 |
 
 ## 기능 토글
 
-위의 모든 기능은 설정 → 플러그인 → dsh-mobile-upgrade에서 전환할 수 있습니다(다음 페이지 로드 시 적용). 또는 `localStorage` 키 — `mfx-attach`, `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus`, `mfx-net`, `mfx-questions`, `mfx-selfupdate`, `mfx-agents`, `mfx-header`, `mfx-listthrottle` — 로 기기별로 재정의할 수 있으며, 값 `"0"`은 기능을 끕니다.
+위의 모든 기능은 설정 → 플러그인 → dsh-mobile-upgrade에서 전환할 수 있습니다(다음 페이지 로드 시 적용). 또는 `localStorage` 키 — `mfx-restart`, `mfx-settle`, `mfx-drawer`, `mfx-settings`, `mfx-modality`, `mfx-menus`, `mfx-net`, `mfx-questions`, `mfx-selfupdate`, `mfx-agents`, `mfx-header`, `mfx-listthrottle` — 로 기기별로 재정의할 수 있으며, 값 `"0"`은 기능을 끕니다.
 
 ## 알려진 제한
 
@@ -62,7 +59,7 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 ## 보안 참고
 
-플러그인의 HTTP 라우트(업로드, 재시작, 설정 편집)는 자체 인증을 수행하지 않습니다 — 로드된 `dsh` 웹 서피스를 신뢰합니다. localhost 밖으로 노출하기 전에 UI의 나머지 부분을 보호하는 것과 같은 게이트(리버스 프록시 인증, 루프백 바인딩) 뒤에 두세요.
+플러그인의 HTTP 라우트(재시작, 설정 편집)는 자체 인증을 수행하지 않습니다 — 로드된 `dsh` 웹 서피스를 신뢰합니다. localhost 밖으로 노출하기 전에 UI의 나머지 부분을 보호하는 것과 같은 게이트(리버스 프록시 인증, 루프백 바인딩) 뒤에 두세요.
 
 ## 커뮤니티 링크
 

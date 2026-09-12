@@ -6,7 +6,6 @@
 
 ## 你会得到
 
-- **输入框附件上传** — 输入框工具行旁多一枚回形针按钮。图片走编辑器原生粘贴附件链路；其他文件上传到服务器，把绝对路径粘贴进草稿，agent 用文件工具即可读取。
 - **重启服务行** — 设置 → 通用里多一条「重启服务」。先确认，再重启 `dsh` 进程，服务恢复应答后页面自动刷新。
 - **输入模态开关** — 原生供应商编辑表单的每个模型行上追加 text/image/video 复选框，把模型的 `input` 数组写回 `settings.yaml`（写前备份）。未定制过的目录模型只读展示开关。
 - **窄屏抽屉侧栏** — 1024px 以下侧栏收成角落小芯片，只保留宿主自己的开关；展开时完整侧栏以抽屉浮在全宽内容之上，选中会话自动收起。芯片与抽屉原子互换（没有会在主线程繁忙时卡住的几何动画），关闭抽屉的那一次点击会在同一帧内把它收起，而不是等宿主重新渲染——因此同时跑着大量会话的手机不会让抽屉卡在半展开状态，收起后的芯片也不会白底盖在宿主已经清空的侧栏轨道上。
@@ -24,12 +23,11 @@
 
 ## 截图
 
-悬浮球、侧栏抽屉、窄屏设置标签与输入框附件按钮（含标注）：
+悬浮球与侧栏抽屉（含标注）：
 
 | | |
 |---|---|
 | ![悬浮球](../../res/shot-floating-chip.png) | ![侧栏抽屉](../../res/shot-drawer.png) |
-| ![设置标签](../../res/shot-settings-tabs.png) | ![附件上传](../../res/shot-composer-attach.png) |
 
 ## 安装
 
@@ -37,9 +35,9 @@
 dsh plugin --profile web add dsh-mobile-upgrade
 ```
 
-重启 `dsh web`，然后在手机上打开 web profile：回形针在输入框旁，重启行在 设置 → 通用，功能开关在 设置 → 插件 → dsh-mobile-upgrade。
+重启 `dsh web`，然后在手机上打开 web profile：重启行在 设置 → 通用，功能开关在 设置 → 插件 → dsh-mobile-upgrade。附件请直接使用宿主输入框自带的附件系统。
 
-需要 `dsh` 0.1.2-rc.1 或更新版本。
+需要 `dsh` 0.1.5-rc.1 或更新版本（宿主内置附件系统已取代本插件的上传功能）。
 
 ## 配置
 
@@ -47,12 +45,11 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 | 键 | 默认值 | 含义 |
 |---|---|---|
-| `uploadDir` | `<dsh home>/mobile-uploads` | 非图片上传文件的保存目录 |
 | `restartEnabled` | `true` | 提供重启服务行及其路由 |
 
 ## 功能开关
 
-上文每个功能都可以在 设置 → 插件 → dsh-mobile-upgrade 里切换（下次页面加载生效），也可以按设备用 `localStorage` 键覆盖——`mfx-attach`、`mfx-restart`、`mfx-settle`、`mfx-drawer`、`mfx-settings`、`mfx-modality`、`mfx-menus`、`mfx-net`、`mfx-questions`、`mfx-selfupdate`、`mfx-agents`、`mfx-header`、`mfx-listthrottle`——值为 `"0"` 即关闭该功能。
+上文每个功能都可以在 设置 → 插件 → dsh-mobile-upgrade 里切换（下次页面加载生效），也可以按设备用 `localStorage` 键覆盖——`mfx-restart`、`mfx-settle`、`mfx-drawer`、`mfx-settings`、`mfx-modality`、`mfx-menus`、`mfx-net`、`mfx-questions`、`mfx-selfupdate`、`mfx-agents`、`mfx-header`、`mfx-listthrottle`——值为 `"0"` 即关闭该功能。
 
 ## 已知限制
 
@@ -62,7 +59,7 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 ## 安全说明
 
-插件的 HTTP 路由（上传、重启、设置编辑）自身不做任何鉴权——它们信任所加载的 `dsh` web 表层。对外暴露部署之前，请把它放到保护其余界面的同一道闸门之后（反代认证、仅回环绑定）。
+插件的 HTTP 路由（重启、设置编辑）自身不做任何鉴权——它们信任所加载的 `dsh` web 表层。对外暴露部署之前，请把它放到保护其余界面的同一道闸门之后（反代认证、仅回环绑定）。
 
 ## 社区链接
 

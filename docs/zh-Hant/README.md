@@ -6,7 +6,6 @@
 
 ## 你會得到
 
-- **輸入框附件上傳** — 輸入框工具列旁多一枚迴紋針按鈕。圖片走編輯器原生貼上附件鏈路；其他檔案上傳到伺服器，把絕對路徑貼進草稿，agent 用檔案工具即可讀取。
 - **重新啟動服務列** — 設定 → 一般裡多一條「重新啟動服務」。先確認，再重新啟動 `dsh` 程序，服務恢復應答後頁面自動重新整理。
 - **輸入模態開關** — 原生供應商編輯表單的每個模型列上追加 text/image/video 核取方塊，把模型的 `input` 陣列寫回 `settings.yaml`（寫入前備份）。未自訂過的目錄模型僅唯讀顯示開關。
 - **窄螢幕抽屜側欄** — 1024px 以下側欄收成角落小晶片，只保留宿主自己的開關；展開時完整側欄以抽屜浮在全寬內容之上，選取會話自動收合。晶片與抽屜原子互換（沒有會在主執行緒忙碌時凍結的幾何動畫），關閉抽屜的那一次點擊會在同一幀內把它收合，而不是等宿主重新渲染——因此同時跑著大量會話的手機不會讓抽屜卡在半展開狀態，收合後的晶片也不會白底蓋在宿主已經清空的側欄軌道上。
@@ -24,12 +23,11 @@
 
 ## 截圖
 
-懸浮球、側欄抽屉、窄螢幕設定標籤與輸入框附件按鈕（含標註）：
+懸浮球與側欄抽屜（含標註）：
 
 | | |
 |---|---|
 | ![懸浮球](../../res/shot-floating-chip.png) | ![側欄抽屉](../../res/shot-drawer.png) |
-| ![設定標籤](../../res/shot-settings-tabs.png) | ![附件上傳](../../res/shot-composer-attach.png) |
 
 ## 安裝
 
@@ -37,9 +35,9 @@
 dsh plugin --profile web add dsh-mobile-upgrade
 ```
 
-重新啟動 `dsh web`，然後在手機上開啟 web profile：迴紋針在輸入框旁，重新啟動列在 設定 → 一般，功能開關在 設定 → 外掛 → dsh-mobile-upgrade。
+重新啟動 `dsh web`，然後在手機上開啟 web profile：重新啟動列在 設定 → 一般，功能開關在 設定 → 外掛 → dsh-mobile-upgrade。附件請直接使用宿主輸入框內建的附件系統。
 
-需要 `dsh` 0.1.2-rc.1 或更新版本。
+需要 `dsh` 0.1.5-rc.1 或更新版本（宿主內建附件系統已取代本外掛的上傳功能）。
 
 ## 設定
 
@@ -47,12 +45,11 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 | 鍵 | 預設值 | 意義 |
 |---|---|---|
-| `uploadDir` | `<dsh home>/mobile-uploads` | 非圖片上傳檔案的儲存目錄 |
 | `restartEnabled` | `true` | 提供重新啟動服務列及其路由 |
 
 ## 功能開關
 
-上文每個功能都可以在 設定 → 外掛 → dsh-mobile-upgrade 裡切換（下次頁面載入生效），也可以按裝置用 `localStorage` 鍵覆寫——`mfx-attach`、`mfx-restart`、`mfx-settle`、`mfx-drawer`、`mfx-settings`、`mfx-modality`、`mfx-menus`、`mfx-net`、`mfx-questions`、`mfx-selfupdate`、`mfx-agents`、`mfx-header`、`mfx-listthrottle`——值為 `"0"` 即關閉該功能。
+上文每個功能都可以在 設定 → 外掛 → dsh-mobile-upgrade 裡切換（下次頁面載入生效），也可以按裝置用 `localStorage` 鍵覆寫——`mfx-restart`、`mfx-settle`、`mfx-drawer`、`mfx-settings`、`mfx-modality`、`mfx-menus`、`mfx-net`、`mfx-questions`、`mfx-selfupdate`、`mfx-agents`、`mfx-header`、`mfx-listthrottle`——值為 `"0"` 即關閉該功能。
 
 ## 已知限制
 
@@ -62,7 +59,7 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 ## 安全說明
 
-外掛的 HTTP 路由（上傳、重新啟動、設定編輯）自身不做任何鑑別——它們信任所載入的 `dsh` web 表層。對外暴露部署之前，請把它放到保護其餘介面的同一道閘門之後（反向代理認證、僅回環繫結）。
+外掛的 HTTP 路由（重新啟動、設定編輯）自身不做任何鑑別——它們信任所載入的 `dsh` web 表層。對外暴露部署之前，請把它放到保護其餘介面的同一道閘門之後（反向代理認證、僅回環繫結）。
 
 ## 社群連結
 
