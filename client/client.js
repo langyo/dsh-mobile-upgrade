@@ -11,7 +11,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	// The build this bundle is. Kept in step with package.json by
 	// scripts/check-manifest.mjs, and surfaced in the settings row plus the
 	// self-update banner below so a device can always say what it runs.
-	var BUILD = "0.8.0";
+	var BUILD = "0.8.1";
 
 	// Everything this plugin renders lives inside native host slots — no
 	// fixed-position body elements, no CSS overrides, no DOM polling.
@@ -997,8 +997,13 @@ function flag(name, dflt) {
 				var menus = document.querySelectorAll('[class*="' + MFX_MENU_MARK + '"]');
 				Array.prototype.forEach.call(menus, function (menu) {
 					if (!narrow) {
-						// wide screens: hand the landing back to the host
-						if (menu.style.left) {
+						// wide screens: hand the landing back to the host — but
+						// only undo our own placement, identified by the styles
+						// the narrow branch always sets (width, or right:auto).
+						// Since 0.1.5 the host positions this menu itself with an
+						// inline left/top pair; wiping left unconditionally threw
+						// the menu to the viewport's left edge on desktop.
+						if (menu.style.width || menu.style.right) {
 							menu.style.boxSizing = "";
 							menu.style.left = "";
 							menu.style.right = "";
