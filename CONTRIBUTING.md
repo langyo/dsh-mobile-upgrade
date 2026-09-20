@@ -68,7 +68,7 @@ see [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
 
 ## Licence
 
-dsh-mobile-upgrade is licensed under the **Creative Commons Zero 1.0 Universal** — see [`LICENSE`](LICENSE).
+dsh-mobile-upgrade is licensed under the **Synthetic Source License 1.0** — see [`LICENSE`](LICENSE).
 
 SySL-1.0 grants a perpetual, worldwide, non-exclusive, royalty-free copyright and
 patent licence (Sections 3 and 4) and keeps only the disclosure obligations as
