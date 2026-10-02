@@ -15,8 +15,9 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 
 	// Most of what this plugin renders lives inside native host slots; the
 	// documented exceptions are the narrow-screen drawer chip, the network
-	// chip, and the connection card — fixed-position plain-DOM overlays that
-	// must stay alive while the host's own React tree is frozen or wedged.
+	// chip, the connection card, and the self-update banner — fixed-position
+	// plain-DOM overlays that must stay alive while the host's own React
+	// tree is frozen or wedged.
 	//
 	//   1. settings extras: ⟳ restart row in the General tab, and the
 	//      models/providers editor in the Models tab (localized labels).
