@@ -13,8 +13,10 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	// self-update banner below so a device can always say what it runs.
 	var BUILD = "0.8.2";
 
-	// Everything this plugin renders lives inside native host slots — no
-	// fixed-position body elements, no CSS overrides, no DOM polling.
+	// Most of what this plugin renders lives inside native host slots; the
+	// documented exceptions are the narrow-screen drawer chip, the network
+	// chip, and the connection card — fixed-position plain-DOM overlays that
+	// must stay alive while the host's own React tree is frozen or wedged.
 	//
 	//   1. settings extras: ⟳ restart row in the General tab, and the
 	//      models/providers editor in the Models tab (localized labels).
@@ -1316,6 +1318,7 @@ function flag(name, dflt) {
 			var connCardOpenedAt = 0;
 			var connPointerIn = false;
 			var connPointerLeftAt = 0;
+			var connHoverOpenedAt = 0;
 
 			function connEffState() {
 				if (connState === "connected") return Date.now() < connRecoveredUntil ? "recovered" : "connected";
@@ -1364,23 +1367,44 @@ function flag(name, dflt) {
 			}
 			connChip.addEventListener("click", function (e) {
 				e.stopPropagation();
+				// A mouse hover opens the card through pointerenter below; a
+				// click landing within the hover-open race window must not
+				// toggle it straight back closed. Only hover-originated opens
+				// carry the stamp, so repeated taps keep toggling normally.
+				if (connCardOpen && connHoverOpenedAt > 0 && Date.now() - connHoverOpenedAt < 350) return;
 				if (connCardOpen) connCloseCard();
 				else connOpenCard();
 			});
 			function connPin(inside, mouse) {
 				connPointerIn = inside;
-				// The leave-grace dismiss is a hover affordance: a touch tap
-				// fires enter/leave in quick succession and must not close a
-				// card the tap just opened (tap-outside and the auto-dismiss
-				// timers own touch).
-				if (!inside && mouse) connPointerLeftAt = Date.now();
+				if (!inside && mouse) {
+					connPointerLeftAt = Date.now();
+					// Re-baseline the auto-dismiss clock on leave: a card
+					// pinned past its auto window must fall to the leave
+					// grace, not snap shut by an already-expired auto timer.
+					if (connCardOpen) connCardOpenedAt = Date.now();
+				}
 			}
 			connChip.addEventListener("pointerenter", function (e) {
-				connPin(true, e.pointerType === "mouse");
-				if (!connCardOpen) connOpenCard();
+				// Only a real mouse hover previews the card; a touch tap's
+				// synthetic enter would otherwise open the card ahead of the
+				// click that is supposed to toggle it (open-then-close in one
+				// tap, stranding touch users with no way back in).
+				if (e.pointerType !== "mouse") return;
+				connPin(true, true);
+				if (!connCardOpen) {
+					connHoverOpenedAt = Date.now();
+					connOpenCard();
+				}
 			});
 			connChip.addEventListener("pointerleave", function (e) { connPin(false, e.pointerType === "mouse"); });
-			connCard.addEventListener("pointerenter", function (e) { connPin(true, e.pointerType === "mouse"); });
+			connCard.addEventListener("pointerenter", function (e) {
+				connPin(true, e.pointerType === "mouse");
+				// Pinning re-arms the auto-dismiss clock: without this, a card
+				// hovered past its auto window would snap shut on leave
+				// instead of honouring the leave grace.
+				if (connCardOpen) connCardOpenedAt = Date.now();
+			});
 			connCard.addEventListener("pointerleave", function (e) { connPin(false, e.pointerType === "mouse"); });
 			connX.addEventListener("click", function (e) {
 				e.stopPropagation();
@@ -1416,7 +1440,14 @@ function flag(name, dflt) {
 				var was = connState;
 				connState = next;
 				if (next === "connected") {
-					if (was !== "connected") connRecoveredUntil = Date.now() + CONN_RECOVERED_MS;
+					if (was !== "connected") {
+						connRecoveredUntil = Date.now() + CONN_RECOVERED_MS;
+						// A card still open from the outage switches to the
+						// recovered copy; re-arm its clock so the recovery
+						// message holds for its own full window instead of
+						// expiring with the outage's elapsed auto timer.
+						if (connCardOpen) connCardOpenedAt = Date.now();
+					}
 				} else if (was === "connected") {
 					// An outage begins: surface the chip and pop the card once.
 					connOpenCard();
