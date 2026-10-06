@@ -11,10 +11,13 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	// The build this bundle is. Kept in step with package.json by
 	// scripts/check-manifest.mjs, and surfaced in the settings row plus the
 	// self-update banner below so a device can always say what it runs.
-	var BUILD = "0.8.1";
+	var BUILD = "0.8.2";
 
-	// Everything this plugin renders lives inside native host slots — no
-	// fixed-position body elements, no CSS overrides, no DOM polling.
+	// Most of what this plugin renders lives inside native host slots; the
+	// documented exceptions are the narrow-screen drawer chip, the network
+	// chip, the connection card, and the self-update banner — fixed-position
+	// plain-DOM overlays that must stay alive while the host's own React
+	// tree is frozen or wedged.
 	//
 	//   1. settings extras: ⟳ restart row in the General tab, and the
 	//      models/providers editor in the Models tab (localized labels).
@@ -81,6 +84,18 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //      nothing lost) and only schedules the list rebuild on a trailing
 //      interval that adapts to the measured rebuild cost, so the page
 //      stays interactive no matter how hard the background streams.
+// 14. connection card: the host's bottom-left connection control reacts to
+//      a click with nothing observable — the retry it requests dives back
+//      into the same wedged transport, the recovery pill is an
+//      unclickable div on a 2s timer, and the narrow rail/drawer sidebar
+//      never renders the control at all. A plain-DOM chip anchors the
+//      status at the bottom-left corner (surviving a frozen host React
+//      tree, the same reason the network chip is plain DOM) and pops a
+//      semi-persistent card: the card stays while the pointer is inside
+//      it, auto-dismisses otherwise, and carries the two actions that do
+//      work — an immediate reconnect through the connection service, and
+//      a full manual page refresh, the one recovery a wedged page always
+//      honors.
 //
 // Optional features are toggled with localStorage keys (value "0" = off):
 //   mfx-restart  (default on) — the ⟳ restart button
@@ -95,6 +110,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //   mfx-agents   (default on) — the catalog-refresh guard + click-to-open chips
 //   mfx-header   (default on) — the narrow-header collector pill + sheet
 //   mfx-listthrottle (default on) — the session-list render throttle
+//   mfx-conn     (default on) — the connection card with manual refresh
 // Without a localStorage override, this plugin's own settings section decides
 // the per-feature toggles (they take effect on next load).
 var namespaceFlags = null;
@@ -113,7 +129,8 @@ var NAMESPACE_FLAG_KEYS = {
 	selfupdate: "selfUpdateEnabled",
 	agents: "agentsEnabled",
 	header: "headerEnabled",
-	listthrottle: "listThrottleEnabled"
+	listthrottle: "listThrottleEnabled",
+	conn: "connectionCardEnabled"
 };
 function flag(name, dflt) {
 	try {
@@ -1173,6 +1190,302 @@ function flag(name, dflt) {
 					inflight: netInflight.map(function (r) { return { p: r.path, ms: Date.now() - r.start }; }),
 					recent: netRecent.length,
 					chip: netChip ? (netChip.isConnected ? "attached" : "detached") : "absent"
+				};
+			};
+		}
+
+		// ---------- 7b. connection card: hover-kept status popup with manual refresh ----------
+		// The host's own control is CSS-module-classed and React-rendered,
+		// both of which fail exactly when this matters: a wedged host stops
+		// re-rendering, and a rebundled host rehashes the classes. So this
+		// feature is plain DOM on a fixed anchor (the network chip's own
+		// reasoning) driven directly by the connection service's state
+		// signal, which lives in the page and keeps firing through a host
+		// freeze. The chip is the persistent status; the card above it is
+		// the semi-persistent tooltip the host never had — pinned while the
+		// pointer is inside it, auto-dismissed otherwise — and its buttons
+		// are the actions the user can trust: reconnect now (through the
+		// same connection service the host's control uses) and a full
+		// manual refresh, which recovers even a page whose transport state
+		// is beyond repair.
+		if (flag("conn", true)) {
+			var connT = function (zh, en) {
+				try { return (navigator.language || "en").toLowerCase().indexOf("zh") === 0 ? zh : en; }
+				catch (e) { return en; }
+			};
+			var CONN_RECOVERED_MS = 4000;
+			var CONN_CARD_AUTO_MS = 12000;
+			var CONN_RECOVER_AUTO_MS = 4000;
+			var CONN_LEAVE_GRACE_MS = 1500;
+			var connStyle = document.createElement("style");
+			connStyle.id = "mfx-conn-style";
+			connStyle.textContent = [
+				// The host indicator this feature replaces: its root element
+				// carries both an _indicator_ fragment and _warning_/_success_
+				// (CSS-module local names), so the pair match survives a class
+				// rehash and simply stops matching (both controls show, a
+				// benign degradation) if the host renames the locals.
+				"[class*=\"_indicator_\"][class*=\"_warning_\"],",
+				"[class*=\"_indicator_\"][class*=\"_success_\"] { display: none !important; }",
+				"#mfx-conn-chip { position: fixed; left: 12px; bottom: 12px; z-index: 92; display: none;",
+				"  align-items: center; gap: 7px; height: 30px; padding: 0 12px 0 10px; border-radius: 15px;",
+				"  border: 1px solid rgba(128,128,128,.4); background: rgba(24,24,28,.94); color: #eee;",
+				"  font-family: inherit; font-size: 12px; font-weight: 500; line-height: 18px; cursor: pointer;",
+				"  box-shadow: 0 4px 14px rgba(0,0,0,.3); }",
+				"#mfx-conn-chip[data-on=\"1\"] { display: inline-flex; }",
+				"#mfx-conn-chip[data-state=\"disconnected\"] { border-color: rgba(214,88,80,.6); }",
+				"#mfx-conn-chip[data-state=\"connecting\"] { border-color: rgba(214,138,48,.6); }",
+				"#mfx-conn-chip[data-state=\"recovered\"] { border-color: rgba(84,178,106,.6); }",
+				"#mfx-conn-chip .mfx-conn-dot { width: 8px; height: 8px; border-radius: 50%; background: #54b26a; flex: none; }",
+				"#mfx-conn-chip[data-state=\"disconnected\"] .mfx-conn-dot { background: #d65850; }",
+				"#mfx-conn-chip[data-state=\"connecting\"] .mfx-conn-dot { background: #d68a30;",
+				"  animation: mfx-conn-pulse 1.2s ease-in-out infinite; }",
+				"@keyframes mfx-conn-pulse { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }",
+				"#mfx-conn-card { position: fixed; left: 12px; bottom: 48px; z-index: 93;",
+				"  width: min(320px, calc(100vw - 24px)); box-sizing: border-box; padding: 14px; border-radius: 14px;",
+				"  border: 1px solid rgba(128,128,128,.4); background: rgba(24,24,28,.96); color: #eee;",
+				"  font-family: inherit; font-size: 13px; line-height: 20px; box-shadow: 0 8px 28px rgba(0,0,0,.4);",
+				"  display: none; }",
+				"#mfx-conn-card[data-open=\"1\"] { display: block; }",
+				"#mfx-conn-card .mfx-conn-head { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }",
+				"#mfx-conn-card .mfx-conn-title { flex: 1; min-width: 0; font-weight: 600; font-size: 13px; }",
+				"#mfx-conn-card .mfx-conn-x { flex: none; width: 24px; height: 24px; display: inline-flex;",
+				"  align-items: center; justify-content: center; border: none; border-radius: 6px; background: transparent;",
+				"  color: inherit; font-size: 14px; line-height: 1; cursor: pointer; }",
+				"#mfx-conn-card .mfx-conn-x:hover { background: rgba(255,255,255,.1); }",
+				"#mfx-conn-card .mfx-conn-body { margin: 0 0 12px; color: rgba(238,238,238,.72); }",
+				"#mfx-conn-card .mfx-conn-actions { display: flex; gap: 8px; }",
+				"#mfx-conn-card .mfx-conn-btn { flex: 1; height: 32px; border-radius: 8px;",
+				"  border: 1px solid rgba(128,128,128,.4); background: transparent; color: #eee;",
+				"  font-family: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }",
+				"#mfx-conn-card .mfx-conn-btn:hover { background: rgba(255,255,255,.08); }",
+				"#mfx-conn-card .mfx-conn-btn.mfx-conn-primary { background: #4f7cd6; border-color: #4f7cd6; color: #fff; }",
+				"#mfx-conn-card .mfx-conn-btn.mfx-conn-primary:hover { background: #5d89de; }",
+				"@media (max-width: 1023px) {",
+				"  #mfx-conn-chip { left: 10px; bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); }",
+				"  #mfx-conn-card { left: 10px; bottom: calc(env(safe-area-inset-bottom, 0px) + 118px); }",
+				"}"
+			].join("\n");
+			document.head.appendChild(connStyle);
+
+			var connChip = document.createElement("button");
+			connChip.type = "button";
+			connChip.id = "mfx-conn-chip";
+			connChip.setAttribute("aria-label", connT("连接状态", "Connection status"));
+			connChip.setAttribute("aria-haspopup", "dialog");
+			connChip.setAttribute("aria-expanded", "false");
+			var connChipDot = document.createElement("span");
+			connChipDot.className = "mfx-conn-dot";
+			var connChipLabel = document.createElement("span");
+			connChip.appendChild(connChipDot);
+			connChip.appendChild(connChipLabel);
+
+			var connCard = document.createElement("div");
+			connCard.id = "mfx-conn-card";
+			connCard.setAttribute("role", "status");
+			var connHead = document.createElement("div");
+			connHead.className = "mfx-conn-head";
+			var connTitle = document.createElement("span");
+			connTitle.className = "mfx-conn-title";
+			var connX = document.createElement("button");
+			connX.type = "button";
+			connX.className = "mfx-conn-x";
+			connX.setAttribute("aria-label", connT("关闭", "Close"));
+			connX.textContent = "✕";
+			connHead.appendChild(connTitle);
+			connHead.appendChild(connX);
+			var connBody = document.createElement("div");
+			connBody.className = "mfx-conn-body";
+			var connActions = document.createElement("div");
+			connActions.className = "mfx-conn-actions";
+			var connReconnectBtn = document.createElement("button");
+			connReconnectBtn.type = "button";
+			connReconnectBtn.className = "mfx-conn-btn";
+			var connRefreshBtn = document.createElement("button");
+			connRefreshBtn.type = "button";
+			connRefreshBtn.className = "mfx-conn-btn mfx-conn-primary";
+			connActions.appendChild(connReconnectBtn);
+			connActions.appendChild(connRefreshBtn);
+			connCard.appendChild(connHead);
+			connCard.appendChild(connBody);
+			connCard.appendChild(connActions);
+			document.body.appendChild(connChip);
+			document.body.appendChild(connCard);
+
+			var connSvc = null;
+			var connState = "connected";
+			var connRecoveredUntil = 0;
+			var connCardOpen = false;
+			var connCardOpenedAt = 0;
+			var connPointerIn = false;
+			var connPointerLeftAt = 0;
+			var connHoverOpenedAt = 0;
+
+			function connEffState() {
+				if (connState === "connected") return Date.now() < connRecoveredUntil ? "recovered" : "connected";
+				return connState;
+			}
+			function connRender() {
+				var eff = connEffState();
+				connChip.setAttribute("data-state", eff);
+				connChip.setAttribute("data-on", eff === "connected" ? "0" : "1");
+				connChip.setAttribute("aria-expanded", connCardOpen ? "true" : "false");
+				connChipLabel.textContent = eff === "disconnected"
+					? connT("连接已断开", "Disconnected")
+					: eff === "connecting" ? connT("自动重连中", "Reconnecting")
+					: connT("已重连", "Reconnected");
+				connTitle.textContent = eff === "disconnected"
+					? connT("连接已断开", "Disconnected")
+					: eff === "connecting" ? connT("正在自动重连", "Reconnecting") + "…"
+					: connT("已重新连接", "Reconnected");
+				connBody.textContent = eff === "disconnected"
+					? connT("与服务器的连接已断开，网络恢复后会自动重试；长时间未恢复时，手动刷新可以完整重建页面。",
+						"The connection to the server is down; retries resume automatically once the network returns. If it stays down, a manual refresh rebuilds the page fully.")
+					: eff === "connecting"
+					? connT("连接中断，正在自动重试。若反复重连无效，手动刷新是始终可靠的恢复方式。",
+						"The connection dropped and automatic retries are running. If reconnecting keeps changing nothing, a manual refresh always recovers.")
+					: connT("连接已恢复，会话数据正在自动同步。", "The connection is back; session data is resyncing automatically.");
+				connReconnectBtn.style.display = eff === "recovered" ? "none" : "";
+				connReconnectBtn.textContent = "⟳ " + connT("立即重连", "Reconnect now");
+				connRefreshBtn.textContent = "↻ " + connT("手动刷新", "Manual refresh");
+				connCard.setAttribute("data-open", connCardOpen ? "1" : "0");
+			}
+			function connOpenCard() {
+				if (!connCardOpen) {
+					connCardOpen = true;
+					connCardOpenedAt = Date.now();
+					// A stale pointer-leave stamp from a previous open would
+					// close this one through the grace path before its own
+					// lifetime has meaning (a touch tap right after a hover
+					// dismissal is the reported sequence).
+					connPointerLeftAt = 0;
+				}
+				connRender();
+			}
+			function connCloseCard() {
+				connCardOpen = false;
+				connRender();
+			}
+			connChip.addEventListener("click", function (e) {
+				e.stopPropagation();
+				// A mouse hover opens the card through pointerenter below; a
+				// click landing within the hover-open race window must not
+				// toggle it straight back closed. Only hover-originated opens
+				// carry the stamp, so repeated taps keep toggling normally.
+				if (connCardOpen && connHoverOpenedAt > 0 && Date.now() - connHoverOpenedAt < 350) return;
+				if (connCardOpen) connCloseCard();
+				else connOpenCard();
+			});
+			function connPin(inside, mouse) {
+				connPointerIn = inside;
+				if (!inside && mouse) {
+					connPointerLeftAt = Date.now();
+					// Re-baseline the auto-dismiss clock on leave: a card
+					// pinned past its auto window must fall to the leave
+					// grace, not snap shut by an already-expired auto timer.
+					if (connCardOpen) connCardOpenedAt = Date.now();
+				}
+			}
+			connChip.addEventListener("pointerenter", function (e) {
+				// Only a real mouse hover previews the card; a touch tap's
+				// synthetic enter would otherwise open the card ahead of the
+				// click that is supposed to toggle it (open-then-close in one
+				// tap, stranding touch users with no way back in).
+				if (e.pointerType !== "mouse") return;
+				connPin(true, true);
+				if (!connCardOpen) {
+					connHoverOpenedAt = Date.now();
+					connOpenCard();
+				}
+			});
+			connChip.addEventListener("pointerleave", function (e) { connPin(false, e.pointerType === "mouse"); });
+			connCard.addEventListener("pointerenter", function (e) {
+				connPin(true, e.pointerType === "mouse");
+				// Pinning re-arms the auto-dismiss clock: without this, a card
+				// hovered past its auto window would snap shut on leave
+				// instead of honouring the leave grace.
+				if (connCardOpen) connCardOpenedAt = Date.now();
+			});
+			connCard.addEventListener("pointerleave", function (e) { connPin(false, e.pointerType === "mouse"); });
+			connX.addEventListener("click", function (e) {
+				e.stopPropagation();
+				connCloseCard();
+			});
+			document.addEventListener("pointerdown", function (e) {
+				if (!connCardOpen) return;
+				var t = e.target;
+				if (t && t.closest && (t.closest("#mfx-conn-card") || t.closest("#mfx-conn-chip"))) return;
+				connCloseCard();
+			}, true);
+			connReconnectBtn.addEventListener("click", function () {
+				try { if (connSvc && typeof connSvc.reconnect === "function") connSvc.reconnect(); } catch (e) {}
+			});
+			connRefreshBtn.addEventListener("click", function () { location.reload(); });
+			// One steady tick owns the timed behaviours (recovery expiry,
+			// auto-dismiss) so they run even while the host tree is frozen.
+			setInterval(function () {
+				try {
+					var now = Date.now();
+					if (connCardOpen && !connPointerIn) {
+						var auto = connEffState() === "recovered" ? CONN_RECOVER_AUTO_MS : CONN_CARD_AUTO_MS;
+						if (now - connCardOpenedAt > auto) connCloseCard();
+						else if (connPointerLeftAt > 0
+							&& now - connPointerLeftAt > CONN_LEAVE_GRACE_MS
+							&& now - connCardOpenedAt > CONN_LEAVE_GRACE_MS) connCloseCard();
+					}
+					connRender();
+				} catch (e) {}
+			}, 500);
+			function connOnState(next) {
+				if (next !== "connected" && next !== "connecting" && next !== "disconnected") return;
+				var was = connState;
+				connState = next;
+				if (next === "connected") {
+					if (was !== "connected") {
+						connRecoveredUntil = Date.now() + CONN_RECOVERED_MS;
+						// A card still open from the outage switches to the
+						// recovered copy; re-arm its clock so the recovery
+						// message holds for its own full window instead of
+						// expiring with the outage's elapsed auto timer.
+						if (connCardOpen) connCardOpenedAt = Date.now();
+					}
+				} else if (was === "connected") {
+					// An outage begins: surface the chip and pop the card once.
+					connOpenCard();
+				}
+				connRender();
+			}
+			function connBind() {
+				try {
+					var svc = null;
+					if (typeof ctx.get === "function") svc = ctx.get("connection");
+					if (!svc && ctx.connection) svc = ctx.connection;
+					if (!svc || !svc.state || typeof svc.state.subscribe !== "function") return false;
+					connSvc = svc;
+					svc.state.subscribe(function () {
+						try { connOnState(svc.state.getSnapshot()); } catch (e) {}
+					});
+					connOnState(svc.state.getSnapshot());
+					return true;
+				} catch (e) {
+					return false;
+				}
+			}
+			var connTries = 0;
+			(function connAwait() {
+				if (connBind()) return;
+				if (++connTries >= 120) return;
+				setTimeout(connAwait, 500);
+			})();
+			connRender();
+			window.__mfxConnDebug = function () {
+				return {
+					service: !!connSvc,
+					state: connState,
+					eff: connEffState(),
+					card: connCardOpen ? "open" : "closed",
+					pointer: connPointerIn ? "in" : "out",
+					chip: connChip.isConnected ? "attached" : "detached"
 				};
 			};
 		}
