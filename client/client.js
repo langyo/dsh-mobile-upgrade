@@ -11,7 +11,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	// The build this bundle is. Kept in step with package.json by
 	// scripts/check-manifest.mjs, and surfaced in the settings row plus the
 	// self-update banner below so a device can always say what it runs.
-	var BUILD = "0.8.2";
+	var BUILD = "0.8.3";
 
 	// Most of what this plugin renders lives inside native host slots; the
 	// documented exceptions are the narrow-screen drawer chip, the network
@@ -28,7 +28,9 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //      (the whale is the host's own toggle, hHd-Xa_collapsed is the state).
 //      The takeover flips atomically — no geometry transition to freeze on a
 //      busy main thread — and a tap that closes it moves the geometry in the
-//      same frame instead of waiting for the host's re-render.
+//      same frame instead of waiting for the host's re-render. The scrim is
+//      mounted inside the app root (overlayMount) so skins that lift #root
+//      into a stacking context cannot paint it over the drawer's contents.
 //   4. narrow settings: the dialog's side nav becomes horizontal top tabs.
 //   5. narrow model menu: the composer's model menu lands full-width.
 //   6. network chip: a slot chip next to the composer controls surfaces /api/
@@ -235,6 +237,45 @@ function flag(name, dflt) {
 			document.head.appendChild(dstyle2);
 		}
 
+		// ---------- shared overlay home: plain-DOM overlays mount inside the app root ----------
+		// The plugin's fixed-position plain-DOM overlays (the drawer scrim, the
+		// toast, the self-update banner, the connection chip and card) used to
+		// append to <body>. A skin breaks that arrangement without touching any
+		// of this plugin's code: a video-background skin has to lift the app
+		// container above its media layer (whale-fantasy ships
+		// `body > #root { position: relative; z-index: 2 }` — its own docs call
+		// this the skin's most load-bearing rule), and that turns #root into a
+		// stacking context. A body-level scrim at z-index 120 then stacked above
+		// that whole context, while the drawer — the host's sidebar column at
+		// z-index 130 — lives inside it: every tap in the opened drawer landed
+		// on the scrim first, so with a skin on, the phone could open the drawer
+		// and only stare at it (2026-10-06 report; skin off, everything worked).
+		// Mounting each overlay in the same container the app lives in restores
+		// the designed order — scrim 120 under drawer 130, chips 90-93 under
+		// the scrim, banner 200 over the drawer — for any z-index a skin hands
+		// #root. #root is the React mount container, not a React-managed
+		// element: React appends its own children and leaves foreign trailing
+		// nodes alone. position:fixed still spans the viewport because skins
+		// only add z-index/position to #root, never transform/filter — the
+		// containing-block trap the drawer's own CSS already documents for the
+		// sidebar pane. A navigation can still rebuild #root wholesale, so a
+		// slow watchdog re-homes anything that rode the replaced tree.
+		var overlayEls = [];
+		function overlayHome() {
+			return document.getElementById("root") || document.body;
+		}
+		function overlayMount(el) {
+			overlayEls.push(el);
+			overlayHome().appendChild(el);
+		}
+		setInterval(function () {
+			var home = overlayHome();
+			for (var i = 0; i < overlayEls.length; i++) {
+				var el = overlayEls[i];
+				if (el.parentElement !== home) home.appendChild(el);
+			}
+		}, 800);
+
 		// ---------- shared toast (used by the network chip below) ----------
 		var toastEl = null;
 		function toast(text) {
@@ -244,7 +285,7 @@ function flag(name, dflt) {
 					"z-index:90;font-size:12px;color:#eee;background:rgba(20,20,24,.88);" +
 					"padding:5px 12px;border-radius:8px;max-width:76vw;white-space:nowrap;" +
 					"overflow:hidden;text-overflow:ellipsis;pointer-events:none";
-				document.body.appendChild(toastEl);
+				overlayMount(toastEl);
 			}
 			toastEl.textContent = text;
 			toastEl.style.display = "block";
@@ -497,8 +538,12 @@ function flag(name, dflt) {
 			// their toggle clicks cancelled each other, the host's rail stayed
 			// expanded and the mirror reopened the drawer once the intent
 			// expired (measured: 12 clicks in 6 cancelling pairs, reopen at
-			// 2.8s). One entry point, one chase.
-			document.body.appendChild(scrim);
+			// 2.8s). One entry point, one chase. The mount goes through
+			// overlayMount — inside the app root, not <body> — so a skin that
+			// lifts #root into a stacking context cannot sandwich this scrim
+			// above the drawer it is the backdrop for (see the overlay-home
+			// block above for the full account).
+			overlayMount(scrim);
 
 
 			var dstyle = document.createElement("style");
@@ -912,7 +957,7 @@ function flag(name, dflt) {
 						"font-size:13px;line-height:18px;color:#fff;background:#3355dd;" +
 						"box-shadow:0 6px 20px rgba(0,0,0,.35);cursor:pointer";
 					banner.addEventListener("click", function () { reloading = true; location.reload(); });
-					document.body.appendChild(banner);
+					overlayMount(banner);
 				};
 				var checkBuild = function () {
 					if (reloading) return;
@@ -1309,8 +1354,8 @@ function flag(name, dflt) {
 			connCard.appendChild(connHead);
 			connCard.appendChild(connBody);
 			connCard.appendChild(connActions);
-			document.body.appendChild(connChip);
-			document.body.appendChild(connCard);
+			overlayMount(connChip);
+			overlayMount(connCard);
 
 			var connSvc = null;
 			var connState = "connected";
