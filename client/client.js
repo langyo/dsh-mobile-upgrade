@@ -1,6 +1,12 @@
 window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	var React = require("react");
 	var inject = ["slots", "sessions"];
+	/* faces beyond this list are read through the optional ctx.get() lookup —
+	   never declared in `inject` and never touched as bare properties: a
+	   declared-but-missing service keeps the whole plugin from activating
+	   (cordis fiber gate), and direct property access on an undeclared name
+	   throws. The collector degrades per-face instead (no jobs service -> no
+	   job rows; no uiWorkspace -> legacy open paths). */
 
 	// Identity shared with the host half: the settings section key and the
 	// route prefix both derive from the package name, so the two halves can
@@ -11,7 +17,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	// The build this bundle is. Kept in step with package.json by
 	// scripts/check-manifest.mjs, and surfaced in the settings row plus the
 	// self-update banner below so a device can always say what it runs.
-	var BUILD = "0.8.3";
+	var BUILD = "0.8.4";
 
 	// Most of what this plugin renders lives inside native host slots; the
 	// documented exceptions are the narrow-screen drawer chip, the network
@@ -599,11 +605,28 @@ function flag(name, dflt) {
 				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] [class*=\"VOzbGW_railRow\"] { display: none !important; }",
 				/* expanded: the full drawer, always on the side the chip is
 				   attached to; !important also neutralizes the inline
-				   left/right/top the drag position stores */
+				   left/right/top the drag position stores.
+				   The surface must be OPAQUE: the host builds the desktop
+				   sidebar from glassy translucent fills (theme tokens resolve
+				   to alpha colors — more so under the glass skins) composited
+				   over the page body, and this drawer floats over arbitrary
+				   content, so nothing of that stack can be reused as-is.
+				   Paint it as solid layers instead: an opaque background-color
+				   chosen per theme (the static palette is theme-invariant, so
+				   the dark tone is picked through body[data-ds-dark-theme])
+				   under the host's own sidebar-fill / layer-1 / bg-base tints,
+				   which carry the exact skin+theme hue. No backdrop-filter
+				   either: a filter would make this element the containing
+				   block for the fixed-position settings dialog that portals
+				   inside the sidebar subtree. */
 				"  html.mfx-drawer-open [class*=\"pI_x6G_sidebarCol\"] { width: min(280px, 84vw); bottom: 0;",
 				"    height: auto !important; top: 0 !important; left: 0 !important; right: auto !important;",
 				"    border-radius: 0 !important; box-shadow: 0 0 44px rgba(0,0,0,.4);",
-				"    background: none !important; -webkit-backdrop-filter: none; backdrop-filter: none; }",
+				"    background-color: #ffffff !important; -webkit-backdrop-filter: none; backdrop-filter: none;",
+				"    background-image: linear-gradient(var(--dsw-specific-sidebar-fill, transparent), var(--dsw-specific-sidebar-fill, transparent)),",
+				"      linear-gradient(var(--dsw-alias-bg-layer-1, transparent), var(--dsw-alias-bg-layer-1, transparent)),",
+				"      linear-gradient(var(--dsw-alias-bg-base, transparent), var(--dsw-alias-bg-base, transparent)) !important; }",
+				"  html.mfx-drawer-open body[data-ds-dark-theme] [class*=\"pI_x6G_sidebarCol\"] { background-color: #151517 !important; }",
 				"  html.mfx-drawer-open.mfx-chip-right [class*=\"pI_x6G_sidebarCol\"] { left: auto !important; right: 0 !important; }",
 				"  html.mfx-drawer-open #mfx-scrim { display: block; }",
 				"}"
@@ -1641,10 +1664,10 @@ function flag(name, dflt) {
 		// the very host that has to answer it, which is exactly when the
 		// chips feel dead and the network chip lights up.
 		//
-		// The guard wraps the session manager's refreshSubagents (the single
-		// choke point every caller — select, catalog-open, stale re-arm,
-		// reconnect — goes through) and adds three client-side brakes while
-		// keeping the host's own per-parent single-flight semantics:
+		// The guard wraps the session controller's refreshProjections (the
+		// single choke point every caller — select, catalog-open, stale
+		// re-arm, reconnect — goes through) and adds three client-side brakes
+		// while keeping the host's own per-parent single-flight semantics:
 		//   * a parent with no subagent children in the live session list
 		//     (and no prior catalog entries) can have no catalog children —
 		//     the corpus scan is skipped outright. The list baseline arrives
@@ -1686,10 +1709,10 @@ function flag(name, dflt) {
 			function installAgentsGuard() {
 				var svc = ctx.sessions;
 				if (!svc) return;
-				var manager = svc.manager && typeof svc.manager.refreshSubagents === "function"
+				var manager = svc.manager && typeof svc.manager.refreshProjections === "function"
 					? svc.manager : null;
 				var target = manager !== null ? manager
-					: (typeof svc.refreshSubagents === "function" ? svc : null);
+					: (typeof svc.refreshProjections === "function" ? svc : null);
 				if (target === null) return;
 				if (target.__mfxAgentsGuarded) {
 					// a plugin reload re-runs apply(): keep the forced-refresh
@@ -1700,44 +1723,55 @@ function flag(name, dflt) {
 					return;
 				}
 				target.__mfxAgentsGuarded = true;
-				var origRefresh = target.refreshSubagents;
+				var origRefresh = target.refreshProjections;
 				target.__mfxOrigRefresh = origRefresh;
 				// A forced refresh bypasses the brakes (sheet retry button,
 				// pending navigation): the user asked for THIS fetch.
 				mfxForceCatalogRefresh = function (parentSessionId) {
 					return Promise.resolve(origRefresh.call(target, parentSessionId));
 				};
-				target.refreshSubagents = function (parentSessionId) {
+				target.refreshProjections = function (parentSessionId) {
 					try {
 						var view = agentsChildrenIndex();
 						var snap = view !== null ? view.snap : null;
 						var kids = view !== null ? view.index : null;
-						var catalog = snap !== null && snap.subagentsByParent
-							? snap.subagentsByParent[parentSessionId] : undefined;
+						/* the projections store is loaded on demand: a parent with
+						   no loaded projection at all is NOT evidence of
+						   childlessness — the fetch has to run once so the
+						   ready-empty state (the actual skip evidence) can
+						   exist. Only a READY, EMPTY catalog combined with no
+						   byId children rows proves childlessness. */
+						var projection = snap !== null && snap.projectionsBySession
+							? snap.projectionsBySession[parentSessionId] : undefined;
+						var catalogEntries = projection !== undefined && projection.values
+							? projection.values.subagentCatalog : undefined;
 						var byIdLoaded = snap !== null && snap.byId
 							&& Object.keys(snap.byId).length > 0;
 						var childless = byIdLoaded
 							&& (!kids || !kids[parentSessionId])
-							&& (catalog === undefined
-								|| (catalog.state === "ready" && (catalog.entries || []).length === 0));
-						// An error catalog is not evidence of childlessness —
-						// the host's own Retry must stay able to refetch.
+							&& projection !== undefined
+							&& (projection.state === "ready" || projection.state === undefined)
+							&& (catalogEntries || []).length === 0;
 						if (childless) {
 							agentsStats.skippedChildless++;
 							return Promise.resolve();
 						}
-						// A catalog someone is watching (an open menu — the
-						// host's chip or this plugin's sheet) keeps its live
-						// membership refreshes: the cooldown must not eat the
-						// 50ms-debounced follow-up a new child schedules, or
-						// the open tree goes stale until it is reopened. The
-						// 350ms start gap below still spaces the fetches.
+						// An error catalog is not evidence of childlessness —
+						// the host's own Retry must stay able to refetch.
+						// A catalog sitting in the error state is likewise
+						// exempt from the cooldown below: a retry tap inside
+						// 2.5s of the failed attempt must actually run.
+						// openCatalogs is a pre-0.2 seat (gone from the 0.2
+						// manager — membership is push-fed there), so the
+						// exemption rides the projection state instead.
 						var openNow = false;
+						var projectionErrored = projection !== undefined
+							&& projection.state === "error";
 						try {
 							openNow = target.openCatalogs instanceof Set
 								&& target.openCatalogs.has(parentSessionId);
 						} catch (e) {}
-						if (!openNow
+						if (!openNow && !projectionErrored
 							&& Date.now() - (agentsLastOk[parentSessionId] || 0) < AGENTS_COOLDOWN_MS) {
 							agentsStats.skippedCooldown++;
 							return Promise.resolve();
@@ -1851,6 +1885,94 @@ function flag(name, dflt) {
 				try {
 					return (navigator.language || "en").toLowerCase().indexOf("zh") === 0 ? zh : en;
 				} catch (e) { return en; }
+			}
+
+			/* Host 0.2 rewired the data under this feature:
+			   * subagent catalogs moved from a list-snapshot `subagentsByParent`
+			     map to per-session PROJECTIONS (`projectionsBySession`, values
+			     include `subagentCatalog` rows { id, mode, label }) that a
+			     session loads on demand via `refreshProjections`;
+			   * background jobs moved out of the list snapshot entirely —
+			     `ctx.jobs.state` is its own observable ({ rows, observed }) fed
+			     while `ctx.jobs.watchRows(sessionId)` holds the feed open;
+			   * `openSubagent`/`open` left the sessions face — navigation goes
+			     through `ctx.uiWorkspace.openSession(idOrAddress)`.
+			   The helpers below bridge the pill onto those faces. All host
+			   reads are feature-detected: an older host keeps its paths, a
+			   newer one must never throw inside a slot render (a throw hands
+			   the entry to the host's error boundary, which is exactly how
+			   this feature died as a blank header row). */
+
+			// One React hook over a plain observable source
+			// ({ getSnapshot, subscribe }), identity-compared.
+			function mfxObservableHook(source) {
+				return function (selector) {
+					var statePair = React.useState(function () { return selector(source.getSnapshot()); });
+					var value = statePair[0];
+					var setValue = statePair[1];
+					React.useEffect(function () {
+						var update = function () {
+							var next;
+							try { next = selector(source.getSnapshot()); } catch (e) { return; }
+							setValue(function (prev) { return prev === next ? prev : next; });
+						};
+						update();
+						return source.subscribe(update);
+					}, []);
+					return value;
+				};
+			}
+
+			var mfxJobsHook = null;
+			// optional lookup: the jobs service does not exist on hosts older
+			// than 0.1.7 — the collector then simply carries no job rows
+			function mfxJobsFace() {
+				try {
+					if (typeof ctx.get === "function") return ctx.get("jobs") || null;
+				} catch (e) {}
+				return null;
+			}
+			function mfxEnsureJobsHook() {
+				if (mfxJobsHook !== null) return mfxJobsHook;
+				var face = mfxJobsFace();
+				var source = face && face.state && typeof face.state.getSnapshot === "function"
+					&& typeof face.state.subscribe === "function" ? face.state : null;
+				if (source === null) {
+					source = { getSnapshot: function () { return {}; }, subscribe: function () { return function () {}; } };
+				}
+				mfxJobsHook = mfxObservableHook(source);
+				return mfxJobsHook;
+			}
+
+			// The host's own derivation for catalog dropdowns (ui-subagent):
+			// idle + no data = loading; entries gain a live running flag from
+			// the session list rows.
+			function mfxDerivedCatalogs(projections, byId) {
+				var out = {};
+				var key;
+				for (key in (projections || {})) {
+					var snapshot = projections[key];
+					if (!snapshot) continue;
+					var raw = snapshot.values ? snapshot.values.subagentCatalog : undefined;
+					var entries = [];
+					var i;
+					for (i = 0; raw && i < raw.length; i++) {
+						var entry = raw[i];
+						var summary = byId ? byId[entry.id] : undefined;
+						entries.push({
+							id: entry.id,
+							mode: entry.mode,
+							label: entry.label,
+							running: !!(summary && summary.running)
+						});
+					}
+					out[key] = {
+						state: snapshot.state === "idle" ? (raw === undefined ? "loading" : "ready") : snapshot.state,
+						error: snapshot.error,
+						entries: entries
+					};
+				}
+				return out;
 			}
 
 			var hstyle = document.createElement("style");
@@ -1982,8 +2104,23 @@ function flag(name, dflt) {
 				var useSessions = props.useSessions;
 				var narrow = useMfxNarrow();
 				var byId = useSessions(function (s) { return s.byId; });
-				var catalogs = useSessions(function (s) { return s.subagentsByParent; });
-				var jobs = useSessions(function (s) { return s.jobsBySession[sessionId]; }) || [];
+				var projections = useSessions(function (s) { return s.projectionsBySession; });
+				var catalogs = React.useMemo(function () { return mfxDerivedCatalogs(projections, byId); }, [projections, byId]);
+				var jobsHook = mfxEnsureJobsHook();
+				// no try/catch here on purpose: mfxEnsureJobsHook guarantees a
+				// source whose getSnapshot cannot throw and the selector reads
+				// a plain object — a catch around a hook CALL would let a
+				// half-initialized render complete and corrupt the hook order
+				var jobs = jobsHook(function (s) { return (s.rows || {})[sessionId]; }) || [];
+				// hold the host's per-session job feed open while the pill is
+				// mounted — the rows above only populate for a watched session.
+				// Gated on narrow: desktop keeps the exact 0.8.3 footprint.
+				React.useEffect(function () {
+					if (!narrow) return undefined;
+					var face = mfxJobsFace();
+					if (!face || typeof face.watchRows !== "function") return undefined;
+					try { return face.watchRows(sessionId); } catch (e) { return undefined; }
+				}, [sessionId, narrow]);
 				var openState = React.useState(false);
 				var open = openState[0], setOpen = openState[1];
 				var topState = React.useState(52);
@@ -2088,30 +2225,36 @@ function flag(name, dflt) {
 					return function () { document.removeEventListener("keydown", onKey); };
 				}, [open]);
 
-				// sheet open: subscribe the root catalog for live membership
-				// updates (the host debounces those; the agents guard spaces
-				// the refetches), and fetch it if absent — through the forced
-				// path, so a childless root still resolves to its empty ready
-				// catalog instead of a perpetual loading row
+				// sheet open: fetch the root catalog if absent — through the
+				// forced path, so a childless root still resolves to its empty
+				// ready catalog instead of a perpetual loading row. Live
+				// membership needs no subscription seat on host 0.2+: catalog
+				// events arrive as projection frames for every attached
+				// session; the legacy open-catalog seat is kept for older
+				// hosts that still push per-observer.
 				React.useEffect(function () {
 					if (!open) return undefined;
 					var sessions = ctx.sessions;
 					if (!sessions) return undefined;
 					try {
 						var catalog = catalogs[rootId];
-						if (catalog === undefined || catalog.state === "error") {
+						if (catalog === undefined || catalog.state === "error" || catalog.state === "loading") {
 							var force = mfxForceCatalogRefresh;
 							if (force !== null) void force(rootId);
-							else void sessions.refreshSubagents(rootId);
+							else if (typeof sessions.refreshProjections === "function") void sessions.refreshProjections(rootId);
 						}
-						sessions.setSubagentCatalogOpen(rootId, true);
+						// setSubagentCatalogOpen is a pre-0.2 seat (the 0.2
+						// manager pushes catalog membership via projection
+						// frames — no per-observer registration to open/close)
+						if (typeof sessions.setSubagentCatalogOpen === "function") sessions.setSubagentCatalogOpen(rootId, true);
 						// branches kept expanded from a previous open resume
 						// their live-membership subscription
 						for (var pid in expandedRef.current) {
-							sessions.setSubagentCatalogOpen(pid, true);
+							if (typeof sessions.setSubagentCatalogOpen === "function") sessions.setSubagentCatalogOpen(pid, true);
 						}
 					} catch (e) {}
 					return function () {
+						if (typeof sessions.setSubagentCatalogOpen !== "function") return undefined;
 						var pid;
 						for (pid in expandedRef.current) {
 							try { sessions.setSubagentCatalogOpen(pid, false); } catch (e) {}
@@ -2139,7 +2282,7 @@ function flag(name, dflt) {
 					if (cat === undefined || cat.entries === undefined) return;
 					for (var i = 0; i < cat.entries.length; i++) {
 						var entry = cat.entries[i];
-						if (entry.kind === "child" && entry.id === pending.id) {
+						if (entry.id === pending.id) {
 							pendingNavRef.current = null;
 							navigateTo(pending.id, entry, summary.parentId);
 							return;
@@ -2156,17 +2299,19 @@ function flag(name, dflt) {
 					var sessions = ctx.sessions;
 					if (sessions === undefined || pid === undefined) return;
 					try {
-						sessions.setSubagentCatalogOpen(pid, true);
+						if (typeof sessions.setSubagentCatalogOpen === "function") sessions.setSubagentCatalogOpen(pid, true);
 						var force = mfxForceCatalogRefresh;
 						if (force !== null) void force(pid);
-						else void sessions.refreshSubagents(pid);
+						else if (typeof sessions.refreshProjections === "function") void sessions.refreshProjections(pid);
 					} catch (e) {}
 				}
 
 				function toggleBranch(pid) {
 					if (expandedRef.current[pid]) {
 						delete expandedRef.current[pid];
-						try { ctx.sessions.setSubagentCatalogOpen(pid, false); } catch (e) {}
+						try {
+							if (typeof ctx.sessions.setSubagentCatalogOpen === "function") ctx.sessions.setSubagentCatalogOpen(pid, false);
+						} catch (e) {}
 					} else {
 						expandedRef.current[pid] = 1;
 						// expanding fetches only what is missing; a ready
@@ -2174,7 +2319,9 @@ function flag(name, dflt) {
 						var catalog = catalogs[pid];
 						if (catalog === undefined || catalog.state === "error") forceCatalog(pid);
 						else {
-							try { ctx.sessions.setSubagentCatalogOpen(pid, true); } catch (e) {}
+							try {
+								if (typeof ctx.sessions.setSubagentCatalogOpen === "function") ctx.sessions.setSubagentCatalogOpen(pid, true);
+							} catch (e) {}
 						}
 					}
 					bump();
@@ -2188,19 +2335,19 @@ function flag(name, dflt) {
 					var address = null;
 					try { address = sessions.subagentAddress(id) || null; } catch (e) {}
 					if (address === null && entry !== null && entry !== undefined
-						&& entry.kind === "child" && parentId !== undefined) {
+						&& parentId !== undefined) {
 						address = { parentSessionId: parentId, childSessionId: id, mode: entry.mode };
 					}
 					if (address === null && isSubagent) {
-						// open(id) resolves an address internally only when the
-						// parent's catalog is loaded — otherwise the child
-						// would land on a broken generic route
+						// an address the controller cannot resolve means the
+						// parent's catalog is not loaded yet — park the tap and
+						// fetch, so the child does not land on a broken route
 						var pid = summary.parentId;
 						var cat = catalogs[pid];
 						var found = false;
 						if (cat !== undefined && cat.entries !== undefined) {
 							for (var i = 0; i < cat.entries.length; i++) {
-								if (cat.entries[i].kind === "child" && cat.entries[i].id === id) { found = true; break; }
+								if (cat.entries[i].id === id) { found = true; break; }
 							}
 						}
 						if (!found) {
@@ -2209,11 +2356,22 @@ function flag(name, dflt) {
 							return;
 						}
 					}
+					// host 0.2 routes everything through the workspace face:
+					// openSession accepts a bare session id or an addressed
+					// child; the legacy sessions.open/openSubagent paths stay
+					// as feature-detected fallbacks for older hosts
 					try {
-						if (address !== null) sessions.openSubagent(address);
-						else sessions.open(id);
+						var workspace = null;
+						if (typeof ctx.get === "function") workspace = ctx.get("uiWorkspace") || null;
+						if (workspace && typeof workspace.openSession === "function") {
+							workspace.openSession(address !== null ? address : id);
+						} else if (address !== null && typeof sessions.openSubagent === "function") {
+							sessions.openSubagent(address);
+						} else if (typeof sessions.open === "function") {
+							sessions.open(id);
+						}
 					} catch (e1) {
-						try { sessions.open(id); } catch (e2) {}
+						try { if (typeof sessions.open === "function") sessions.open(id); } catch (e2) {}
 					}
 					closeSheet();
 				}
@@ -2255,11 +2413,11 @@ function flag(name, dflt) {
 					if (cat !== undefined && cat.entries !== undefined) {
 						for (i = 0; i < cat.entries.length; i++) {
 							var entry = cat.entries[i];
-							if (entry.kind !== "child" || seen[entry.id]) continue;
+							if (seen[entry.id]) continue;
 							models.push({
 								id: entry.id,
 								title: entry.label || entry.id,
-								running: entry.activity === "running",
+								running: entry.running === true,
 								entry: entry
 							});
 						}
@@ -2288,9 +2446,17 @@ function flag(name, dflt) {
 					for (i = 0; i < models.length; i++) {
 						var model = models[i];
 						var entry2 = model.entry;
-						var expandable = entry2 !== undefined && entry2 !== null
-							? !!entry2.hasChildren
-							: !!(tree.kids[model.id] && tree.kids[model.id].length);
+						/* catalog rows carry no hasChildren hint on host 0.2:
+						   a branch is expandable unless its own catalog is a
+						   known-empty leaf (the host's dropdown uses the same
+						   rule); list-only rows fall back to the live tree */
+						var expandable;
+						if (entry2 !== undefined && entry2 !== null) {
+							var own = catalogs[entry2.id];
+							expandable = !(own !== undefined && own.state === "ready" && own.entries.length === 0);
+						} else {
+							expandable = !!(tree.kids[model.id] && tree.kids[model.id].length);
+						}
 						var st = tree.stats[model.id] || { count: 0, running: 0 };
 						var isExpanded = !!expandedRef.current[model.id];
 						out.push(React.createElement("div", {
@@ -2326,7 +2492,7 @@ function flag(name, dflt) {
 				function catalogEntry(cat, childId) {
 					if (cat === undefined || cat.entries === undefined) return undefined;
 					for (var i = 0; i < cat.entries.length; i++) {
-						if (cat.entries[i].kind === "child" && cat.entries[i].id === childId) return cat.entries[i];
+						if (cat.entries[i].id === childId) return cat.entries[i];
 					}
 					return undefined;
 				}
