@@ -17,7 +17,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	// The build this bundle is. Kept in step with package.json by
 	// scripts/check-manifest.mjs, and surfaced in the settings row plus the
 	// self-update banner below so a device can always say what it runs.
-	var BUILD = "0.8.4";
+	var BUILD = "0.8.5";
 
 	// Most of what this plugin renders lives inside native host slots; the
 	// documented exceptions are the narrow-screen drawer chip, the network
@@ -152,6 +152,11 @@ function flag(name, dflt) {
 	return dflt;
 }
 	function apply(ctx, config) {
+		// One line a user (or their agent) can grep the console for to answer
+		// "is the plugin even running on this page?" — the report that opens
+		// this section was a page where it was not, and nothing else on the
+		// page said so.
+		try { console.info("[dsh-mobile-upgrade] " + BUILD + " active"); } catch (e) {}
 		// The settings mirror is polled so the namespace switches stay in
 		// sync with per-device localStorage overrides. During a connection
 		// disturbance this is exactly the traffic that must not pile up:
@@ -586,17 +591,50 @@ function flag(name, dflt) {
 				"    height: 56px !important; z-index: 130; overflow: hidden;",
 				"    box-shadow: 0 2px 14px rgba(0,0,0,.18); touch-action: none;",
 				"    background: rgba(128,132,140,.28) !important; }",
-				"  html:not(.mfx-drawer-open) [class*=\"pI_x6G_sidebarCol\"] { border-radius: 50% !important; }",
+				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] { border-radius: 50% !important; }",
 				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] { height: auto !important;",
 				"    min-height: 0 !important; padding: 0 !important; }",
-				/* the toggle fills the circle exactly: the host root carries its
-				   own 18px top padding that pushed the whale below center, and
-				   width/height 100% resolved against that padded box — anchor
-				   the toggle to the chip itself instead */
-				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] [class*=\"hHd-Xa_toggle\"]",
-				"  { position: absolute !important; inset: 0 !important; width: 100% !important;",
-				"    height: 100% !important; display: grid !important; place-items: center !important;",
-				"    margin: 0 !important; padding: 0 !important; }",
+				/* the toggle fills the circle exactly — anchored against the
+				   closed chip, NOT the host's collapsed class: host 0.2 keeps
+				   the class but wraps the toggle in a 36px logoRow, so inset:0
+				   resolved against that and the whale sat above center, with
+				   skins free to scale it through their brand-mark hooks (the
+				   "缩放问题" report). Explicit chip-height anchoring, a pinned
+				   24x17.66 whale (the svg's own viewBox ratio) and a
+				   transform/scale kill across the chip's subtree make the
+				   whale deterministic under any skin. Scoped to the closed
+				   chip: the open drawer's header toggle keeps its normal
+				   layout. */
+				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_toggle\"]",
+				"  { position: absolute !important; top: 0 !important; left: 0 !important;",
+				"    width: 100% !important; height: 56px !important; display: grid !important;",
+				"    place-items: center !important; margin: 0 !important; padding: 0 !important; }",
+				/* skins hijack the whale: orca-link sets display:none on the
+				   brand-mark svg (matched through data-orca-link-brand on the
+				   toggle) and paints its own oversized logo inside the rail —
+				   the giant clipped DSH the report screenshotted. Force the
+				   whale back, drop every sibling/pseudo the skin injects, and
+				   pin the svg to its viewBox ratio. */
+				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_railMark\"] svg,",
+				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [data-slot=\"sidebar.brand.mark\"] svg",
+				"  { display: block !important; opacity: 1 !important; width: 24px !important; height: 17.66px !important; transform: none !important; }",
+				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_toggle\"] > *:not([class*=\"hHd-Xa_railMark\"]),",
+				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_railMark\"] > *:not([data-slot=\"sidebar.brand.mark\"]),",
+				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [data-slot=\"sidebar.brand.mark\"] > *:not(svg),",
+				/* and the logo row's other tenants: skins park an absolutely
+				   positioned wordmark logo (data-orca-link-wordmark, 118px
+				   "DSH") next to the toggle inside the 56px circle — hide every
+				   logoRow sibling that is not the toggle itself */
+				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_logoRow\"] > *:not([class*=\"hHd-Xa_toggle\"])",
+				"  { display: none !important; }",
+				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_toggle\"]::before,",
+				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_toggle\"]::after,",
+				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_railMark\"]::before,",
+				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_railMark\"]::after,",
+				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [data-slot=\"sidebar.brand.mark\"]::before,",
+				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [data-slot=\"sidebar.brand.mark\"]::after",
+				"  { display: none !important; content: none !important; }",
+				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] * { transform: none !important; scale: none !important; }",
 				/* collapsed: hide everything except the whale toggle */
 				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] [class*=\"hHd-Xa_newSession\"],",
 				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] [class*=\"bhn1Oq_iconButton\"],",
@@ -619,21 +657,75 @@ function flag(name, dflt) {
 				   either: a filter would make this element the containing
 				   block for the fixed-position settings dialog that portals
 				   inside the sidebar subtree. */
-				"  html.mfx-drawer-open [class*=\"pI_x6G_sidebarCol\"] { width: min(280px, 84vw); bottom: 0;",
+				"  html.mfx-drawer-open [class*=\"pI_x6G_sidebarCol\"], html.mfx-drawer-closing [class*=\"pI_x6G_sidebarCol\"] { width: min(280px, 84vw); bottom: 0;",
 				"    height: auto !important; top: 0 !important; left: 0 !important; right: auto !important;",
 				"    border-radius: 0 !important; box-shadow: 0 0 44px rgba(0,0,0,.4);",
 				"    background-color: #ffffff !important; -webkit-backdrop-filter: none; backdrop-filter: none;",
 				"    background-image: linear-gradient(var(--dsw-specific-sidebar-fill, transparent), var(--dsw-specific-sidebar-fill, transparent)),",
 				"      linear-gradient(var(--dsw-alias-bg-layer-1, transparent), var(--dsw-alias-bg-layer-1, transparent)),",
 				"      linear-gradient(var(--dsw-alias-bg-base, transparent), var(--dsw-alias-bg-base, transparent)) !important; }",
-				"  html.mfx-drawer-open body[data-ds-dark-theme] [class*=\"pI_x6G_sidebarCol\"] { background-color: #151517 !important; }",
-				"  html.mfx-drawer-open.mfx-chip-right [class*=\"pI_x6G_sidebarCol\"] { left: auto !important; right: 0 !important; }",
-				"  html.mfx-drawer-open #mfx-scrim { display: block; }",
+				"  html.mfx-drawer-open body[data-ds-dark-theme] [class*=\"pI_x6G_sidebarCol\"], html.mfx-drawer-closing body[data-ds-dark-theme] [class*=\"pI_x6G_sidebarCol\"] { background-color: #151517 !important; }",
+				"  html.mfx-drawer-open.mfx-chip-right [class*=\"pI_x6G_sidebarCol\"], html.mfx-drawer-closing.mfx-chip-right [class*=\"pI_x6G_sidebarCol\"] { left: auto !important; right: 0 !important; }",
+				"  html.mfx-drawer-open #mfx-scrim, html.mfx-drawer-closing #mfx-scrim { display: block; }",
+				/* open/close motion — transform and opacity ONLY, so every frame
+				   runs on the compositor and a busy main thread can never catch
+				   the drawer halfway across the screen (the width-changing
+				   animation the phone report froze is still banned: the width
+				   flip between chip and drawer stays atomic, and the closing
+				   state simply re-uses the drawer geometry until its timer
+				   lands it back on the chip). No opacity on the drawer itself
+				   while sliding: sub-1 opacity would make it the containing
+				   block for the fixed settings dialog that portals inside the
+				   sidebar subtree — the fade lives on the chip ghost and the
+				   scrim instead. */
+				"  html.mfx-drawer-anim-in [class*=\"pI_x6G_sidebarCol\"] { animation: mfxDrawerIn 300ms cubic-bezier(.25,.7,.3,1) both; }",
+				"  html.mfx-drawer-closing [class*=\"pI_x6G_sidebarCol\"] { animation: mfxDrawerOut 260ms ease-in both; }",
+				"  html.mfx-chip-right.mfx-drawer-anim-in [class*=\"pI_x6G_sidebarCol\"] { animation-name: mfxDrawerInRight; }",
+				"  html.mfx-chip-right.mfx-drawer-closing [class*=\"pI_x6G_sidebarCol\"] { animation-name: mfxDrawerOutRight; }",
+				"  html.mfx-drawer-open #mfx-scrim { animation: mfxScrimIn 300ms ease both; }",
+				"  html.mfx-drawer-closing #mfx-scrim { animation: mfxScrimOut 260ms ease-in both; pointer-events: none; }",
+				"  @keyframes mfxDrawerIn { from { transform: translateX(-100%); } to { transform: none; } }",
+				"  @keyframes mfxDrawerInRight { from { transform: translateX(100%); } to { transform: none; } }",
+				"  @keyframes mfxDrawerOut { from { transform: none; } to { transform: translateX(-100%); } }",
+				"  @keyframes mfxDrawerOutRight { from { transform: none; } to { transform: translateX(100%); } }",
+				"  @keyframes mfxScrimIn { from { opacity: 0; } to { opacity: 1; } }",
+				"  @keyframes mfxScrimOut { from { opacity: 1; } to { opacity: 0; } }",
 				"}"
 			].join("\n");
 			document.head.appendChild(dstyle);
 
+			/* the chip ghost: a plain-DOM copy of the collapsed chip that
+			   fades out while the drawer slides in and fades back in while it
+			   slides out — the one element that carries the chip's 渐变消失,
+			   since the real chip element IS the drawer (one node, two
+			   settled looks) and can only flip atomically. */
+			var gstyle = document.createElement("style");
+			gstyle.id = "mfx-chip-ghost-style";
+			gstyle.textContent = [
+				"#mfx-chip-ghost { position: fixed; z-index: 131; width: 56px; height: 56px;",
+				"  border-radius: 50%; background: rgba(128,132,140,.28);",
+				"  box-shadow: 0 2px 14px rgba(0,0,0,.18); display: grid; place-items: center;",
+				"  pointer-events: none; opacity: 0; }",
+				"#mfx-chip-ghost svg { display: block !important; opacity: 1 !important; width: 24px !important; height: 17.66px !important; transform: none !important; }",
+				"#mfx-chip-ghost.mfx-ghost-out { animation: mfxGhostFadeOut 300ms ease-out both; }",
+				"#mfx-chip-ghost.mfx-ghost-in { animation: mfxGhostFadeIn 240ms ease-out both; }",
+				"@keyframes mfxGhostFadeOut { from { opacity: .95; } to { opacity: 0; } }",
+				"@keyframes mfxGhostFadeIn { from { opacity: 0; } to { opacity: .95; } }"
+			].join("\n");
+			document.head.appendChild(gstyle);
+
 			var drawerOpen = null;
+			// open/close motion: compositor-only transform keyframes, the chip
+			// fades through a plain-DOM ghost (the real chip element IS the
+			// drawer — one node, two settled looks — so its own flip stays
+			// atomic and the ghost carries the fade). Skipped entirely under
+			// prefers-reduced-motion; the timer lands every animated state on
+			// its final look even if animationend never fires.
+			var ANIM_MS = 300;
+			var animTimer = null;
+			var ghost = null;
+			var reduceMotion = false;
+			try { reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
 			// AssistiveTouch-style chip position: persisted attachment side and
 			// vertical offset; the drawer opens on the attached side
 			var chipSide = "left";
@@ -698,6 +790,11 @@ function flag(name, dflt) {
 			document.addEventListener("pointerdown", function (ev) {
 				if (desktopMQ.matches) return;
 				if (document.documentElement.classList.contains("mfx-drawer-open")) return;
+				// a drag during the closing slide would recompute the chip side
+				// on pointerup and swap mfx-chip-right mid-animation — the
+				// animation-name change restarts the slide from the opposite
+				// edge; drags wait until the chip has landed
+				if (document.documentElement.classList.contains("mfx-drawer-closing")) return;
 				var chip = ev.target && ev.target.closest ? ev.target.closest('[class*="pI_x6G_sidebarCol"]') : null;
 				if (!chip) return;
 				chipDrag.active = true;
@@ -797,10 +894,65 @@ function flag(name, dflt) {
 				if (!rail) return null;
 				return String(rail.className).indexOf("hHd-Xa_collapsed") !== -1;
 			}
+			function mfxGhostChip(mode) {
+				// mode "out": the drawer is opening — the chip fades away.
+				// mode "in": the drawer is closing — the chip fades back.
+				try {
+					if (ghost === null) {
+						ghost = document.createElement("div");
+						ghost.id = "mfx-chip-ghost";
+						overlayMount(ghost);
+					}
+					ghost.style.top = chipTop + "px";
+					ghost.style.left = chipSide === "left" ? "10px" : "";
+					ghost.style.right = chipSide === "right" ? "10px" : "";
+					/* the whale svg — brand-mark first: in the expanded drawer the
+				   toggle carries the panel glyph (railMark is collapsed-only)
+				   and ghost-in runs before the host commits the collapse, so
+				   the toggle itself is the wrong source in both directions.
+				   The expanded header keeps its own brandMark whale. */
+					var svg = document.querySelector('[class*="hHd-Xa_railMark"] svg')
+					|| document.querySelector('[data-slot="sidebar.brand.mark"] svg')
+					|| document.querySelector('[class*="hHd-Xa_brandMark"] svg')
+					|| document.querySelector('[class*="hHd-Xa_toggle"] svg');
+					ghost.innerHTML = "";
+					if (svg) ghost.appendChild(svg.cloneNode(true));
+					ghost.classList.remove("mfx-ghost-out", "mfx-ghost-in");
+					void ghost.offsetWidth; // restart the keyframe on re-use
+					ghost.classList.add(mode === "out" ? "mfx-ghost-out" : "mfx-ghost-in");
+				} catch (e) {}
+			}
 			function setDrawer(open) {
 				drawerOpen = open;
-				document.documentElement.classList.toggle("mfx-drawer-open", open);
-				if (open) pendingOpen = false;
+				var html = document.documentElement;
+				clearTimeout(animTimer);
+				if (open) {
+					pendingOpen = false;
+					html.classList.remove("mfx-drawer-closing", "mfx-drawer-anim-in");
+					html.classList.add("mfx-drawer-open");
+					if (!reduceMotion && !desktopMQ.matches) {
+						html.classList.add("mfx-drawer-anim-in");
+						mfxGhostChip("out");
+						animTimer = setTimeout(function () {
+							html.classList.remove("mfx-drawer-anim-in");
+						}, ANIM_MS + 80);
+					}
+				} else if (!reduceMotion && !desktopMQ.matches && html.classList.contains("mfx-drawer-open")) {
+					// keep the drawer geometry for the slide-out, then land on
+					// the chip when the timer clears the closing class; the
+					// ghost's fade-in must land at the same beat — mfxGhostFadeIn
+					// fills forwards at .95, and a ghost left holding would
+					// stack a duplicate chip on the real one
+					html.classList.remove("mfx-drawer-open", "mfx-drawer-anim-in");
+					html.classList.add("mfx-drawer-closing");
+					mfxGhostChip("in");
+					animTimer = setTimeout(function () {
+						html.classList.remove("mfx-drawer-closing");
+						try { if (ghost) ghost.classList.remove("mfx-ghost-in"); } catch (e) {}
+					}, ANIM_MS + 60);
+				} else {
+					html.classList.remove("mfx-drawer-open", "mfx-drawer-closing", "mfx-drawer-anim-in");
+				}
 			}
 			// No rescue look any more. An earlier version painted the collapsed
 			// rail's own look inside the chip while the host caught up; the rules
@@ -859,6 +1011,7 @@ function flag(name, dflt) {
 					if (desktopMQ.matches) {
 						// desktop: the sidebar is a regular grid column, never a drawer
 						if (drawerOpen !== false) setDrawer(false);
+						try { if (ghost) ghost.classList.remove("mfx-ghost-in", "mfx-ghost-out"); } catch (e) {}
 						return;
 					}
 					observeDrawer();
