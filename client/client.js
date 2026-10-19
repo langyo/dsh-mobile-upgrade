@@ -477,7 +477,7 @@ function flag(name, dflt) {
 							// late config arrival: re-sync toggle states from disk
 							if (modalityCache && modalityCache[route]) {
 								var mid = (entry.querySelector("input") || {}).value || "";
-								var cur = currentModelInput(route, mid) ?? [];
+								var cur = effectiveModelInput(route, mid) ?? currentModelInput(route, mid) ?? ["text"];
 								entry.querySelectorAll("input[data-mod]").forEach(function (cb) {
 									if (cb._busy) return;
 									var want = cur.indexOf(cb.getAttribute("data-mod")) !== -1;
@@ -521,8 +521,20 @@ function flag(name, dflt) {
 								})
 								.then(function (r) { return r.json(); })
 								.then(function (d) {
+									if (!d.ok) { bar.title = "✗ " + (d.error || "save failed"); cb._busy = false; return; }
+									// Fold the saved value into the cache so the next re-sync
+									// keeps the checkbox instead of reverting it.
+									if (modalityCache && modalityCache[route]) {
+										var section = modalityCache[route];
+										var model = (section.models || []).find(function (x) { return x && x.id === modelId; });
+										if (!model && section.modelOverrides && section.modelOverrides[modelId]) model = section.modelOverrides[modelId];
+										if (model) {
+											if (input.length > 0) model.input = input.slice();
+											else delete model.input;
+										}
+									}
+									bar.title = "";
 									cb._busy = false;
-									if (!d.ok) bar.title = "✗ " + (d.error || "save failed");
 								})
 								.catch(function () { cb._busy = false; });
 							});
