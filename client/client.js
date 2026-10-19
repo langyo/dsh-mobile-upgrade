@@ -466,7 +466,10 @@ function flag(name, dflt) {
 						loadEffectiveModalities(route);
 						return;
 					}
-					if (!effectiveModels) { loadEffectiveModalities(route); return; }
+					// Render from the route cache while the optional remote.llm
+					// namespace is unavailable (or still loading); the effective
+					// catalog refines the values when it arrives.
+					if (!effectiveModels) loadEffectiveModalities(route);
 					var entries = panel.querySelectorAll('[class*="zGbnIq_modelEntry"]');
 					Array.prototype.forEach.call(entries, function (entry) {
 						var existing = entry.querySelector(".mfx-modality");
