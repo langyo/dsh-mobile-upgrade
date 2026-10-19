@@ -1,6 +1,6 @@
 window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	var React = require("react");
-	var inject = ["slots", "sessions", "remote"];
+	var inject = ["slots", "sessions", "remote", "remote.settings"];
 	/* faces beyond this list are read through the optional ctx.get() lookup —
 	   never declared in `inject` and never touched as bare properties: a
 	   declared-but-missing service keeps the whole plugin from activating
@@ -408,8 +408,9 @@ function flag(name, dflt) {
 			}
 			function loadEffectiveModalities(route) {
 				try {
-					if (!ctx.remote || !ctx.remote.llm || !ctx.remote.llm.listProviders) return Promise.resolve();
-					return Promise.resolve(ctx.remote.llm.listProviders()).then(function (res) {
+					var llm = ctx.get ? ctx.get("remote.llm") : undefined;
+					if (!llm || !llm.listProviders) return Promise.resolve();
+					return Promise.resolve(llm.listProviders()).then(function (res) {
 						var value = res && res.value !== undefined ? res.value : res;
 						effectiveModels = value;
 						ensureModalitySwitches();
