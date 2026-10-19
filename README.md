@@ -43,7 +43,7 @@ Requires `dsh` 0.2.0-rc.2 or newer (the host's built-in attachment system replac
 
 ## Configuration
 
-The plugin's settings card takes:
+The plugin's settings card lists one switch per feature (see [Feature toggles](#feature-toggles)); `restartEnabled` also gates the restart route:
 
 | Key | Default | Meaning |
 |---|---|---|

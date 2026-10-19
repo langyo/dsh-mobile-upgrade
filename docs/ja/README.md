@@ -43,7 +43,7 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 ## 設定
 
-プラグインの設定カード:
+プラグインの設定カードは機能ごとに 1 つのスイッチを表示します（「機能トグル」参照）。`restartEnabled` は再起動ルートも制御します：
 
 | キー | 既定値 | 意味 |
 |---|---|---|

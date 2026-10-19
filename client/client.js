@@ -1,6 +1,6 @@
 window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	var React = require("react");
-	var inject = ["slots", "sessions"];
+	var inject = ["slots", "sessions", "remote"];
 	/* faces beyond this list are read through the optional ctx.get() lookup —
 	   never declared in `inject` and never touched as bare properties: a
 	   declared-but-missing service keeps the whole plugin from activating

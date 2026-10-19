@@ -43,7 +43,7 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 ## 設定
 
-外掛設定卡提供：
+外掛設定卡按功能列出開關（詳見「功能開關」一節）；`restartEnabled` 還控制重新啟動路由：
 
 | 鍵 | 預設值 | 意義 |
 |---|---|---|

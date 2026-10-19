@@ -43,7 +43,7 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 ## 配置
 
-插件设置卡提供：
+插件设置卡按功能列出开关（详见「功能开关」一节）；`restartEnabled` 还控制重启路由：
 
 | 键 | 默认值 | 含义 |
 |---|---|---|

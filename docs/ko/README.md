@@ -43,7 +43,7 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 ## 설정
 
-플러그인 설정 카드:
+플러그인 설정 카드는 기능당 스위치 하나를 표시합니다(「기능 토글」 참조). `restartEnabled`는 재시작 라우트도 제어합니다:
 
 | 키 | 기본값 | 의미 |
 |---|---|---|

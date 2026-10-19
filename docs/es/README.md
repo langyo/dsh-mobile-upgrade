@@ -43,7 +43,7 @@ Requiere `dsh` 0.2.0-rc.2 o posterior (el sistema de adjuntos integrado del host
 
 ## Configuración
 
-La tarjeta de ajustes del plugin admite:
+La tarjeta de ajustes del plugin enumera un interruptor por función (véase «Interruptores por función»); `restartEnabled` también controla la ruta de reinicio:
 
 | Clave | Por defecto | Significado |
 |---|---|---|

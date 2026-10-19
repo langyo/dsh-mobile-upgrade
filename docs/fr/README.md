@@ -43,7 +43,7 @@ Nécessite `dsh` 0.2.0-rc.2 ou plus récent (le système d'attachement intégré
 
 ## Configuration
 
-La carte de paramètres du plugin accepte :
+La carte de paramètres du plugin liste un interrupteur par fonction (voir « Commutateurs par fonction ») ; `restartEnabled` contrôle aussi la route de redémarrage :
 
 | Clé | Par défaut | Signification |
 |---|---|---|

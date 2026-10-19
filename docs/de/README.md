@@ -43,7 +43,7 @@ Erfordert `dsh` 0.2.0-rc.2 oder neuer (das eingebaute Anhang-System des Hosts ha
 
 ## Konfiguration
 
-Die Einstellungskarte des Plugins nimmt:
+Die Einstellungskarte des Plugins listet einen Schalter pro Funktion (siehe Funktionsschalter); `restartEnabled` steuert zusätzlich die Neustart-Route:
 
 | Schlüssel | Standard | Bedeutung |
 |---|---|---|
