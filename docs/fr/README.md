@@ -7,7 +7,7 @@ Améliorations mobiles pour le profil web de [DeepSeek Harness](https://github.c
 ## Ce que vous obtenez
 
 - **Ligne de redémarrage** — une entrée « Redémarrer le service » dans Paramètres → Général. Demande d'abord confirmation, redémarre le processus `dsh`, puis recharge la page automatiquement dès que le service répond à nouveau.
-- **Commutateurs de modalité d'entrée** — cases à cocher text/image/video sur chaque ligne de modèle de l'éditeur de fournisseur natif, écrivant le tableau `input` du modèle dans `settings.yaml` (avec sauvegarde à côté du fichier). Les modèles de catalogue sans route personnalisée affichent les commutateurs en lecture seule.
+- **Commutateurs de modalité d'entrée** — cases à cocher text/image sur chaque ligne de modèle de l'éditeur de fournisseur natif, écrivant le tableau `input` du modèle dans le document de réglages du profil actif (avec une sauvegarde 0600 à côté). Les modèles de catalogue sans route personnalisée affichent les commutateurs en lecture seule.
 - **Tiroir pour écrans étroits** — en dessous de 1024px, la barre latérale se réduit en une petite pastille d'angle qui conserve le bouton de l'hôte ; dépliée, la barre complète flotte en tiroir au-dessus du contenu pleine largeur, et choisir une session la referme. La pastille et le tiroir permutent de façon atomique (aucune animation de géométrie susceptible de se figer lorsque le thread principal est occupé), et un appui qui ferme le tiroir le replie dans cette même frame au lieu d'attendre le nouveau rendu de l'hôte — de sorte qu'un téléphone faisant tourner de nombreuses sessions ne peut pas laisser le tiroir coincé à moitié déplié, et la pastille fermée ne reste jamais blanche au-dessus d'un rail que l'hôte a déjà vidé. Le tiroir déplié peint une surface opaque composée à partir des propres jetons de barre latérale du thème, si bien qu'un habillage vitré ne peut plus le rendre transparent. À l'ouverture, le tiroir glisse depuis le côté de la pastille (transform/opacity uniquement — la largeur n'est jamais animée) pendant qu'une copie fantôme fait disparaître la pastille en fondu, et la pastille garde la baleine de l'hôte à une taille fixée qu'aucun habillage ne peut modifier.
 - **Onglets de paramètres sur écran étroit** — en dessous de 700px, la navigation latérale du dialogue de paramètres devient une rangée d'onglets à défilement horizontal.
 - **Menu de modèles pleine largeur** — en dessous de 700px, le menu de modèles du composer se ré-ancre exactement à la largeur du téléphone (marges de 12px) au lieu de sortir de l'écran ; le placement vertical au-dessus du déclencheur reste géré par l'hôte.
@@ -39,7 +39,7 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 Redémarrez `dsh web`, puis ouvrez le profil web sur votre téléphone : la ligne de redémarrage se trouve dans Paramètres → Général et les interrupteurs dans Paramètres → Plugins → dsh-mobile-upgrade. Les pièces jointes viennent du système d'attachement natif du composer de l'hôte.
 
-Nécessite `dsh` 0.1.5-rc.1 ou plus récent (le système d'attachement intégré de l'hôte remplace la fonction d'envoi de ce plugin).
+Nécessite `dsh` 0.2.0-rc.2 ou plus récent (le système d'attachement intégré de l'hôte remplace la fonction d'envoi de ce plugin).
 
 ## Configuration
 

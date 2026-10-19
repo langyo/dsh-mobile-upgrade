@@ -27,13 +27,13 @@
     "mobile"
   ],
   "engines": {
-    "dsh": ">=0.1.5-rc.1"
+    "dsh": ">=0.2.0-rc.2"
   },
   "dependencies": {
     "yaml": "^2.6.0"
   },
   "peerDependencies": {
-    "@deepseek-ai/schemastery": "^3.18.1"
+    "@deepseek-ai/schemastery": "^3.18.3"
   },
   "repository": {
     "type": "git",

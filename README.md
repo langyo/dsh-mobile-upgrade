@@ -7,7 +7,7 @@ Mobile quality-of-life fixes for the [DeepSeek Harness](https://github.com/deeps
 ## What you get
 
 - **Restart row** — a "Restart service" entry in Settings → General. Confirms first, restarts the `dsh` process, and reloads the page automatically once the service answers again.
-- **Input-modality switches** — text/image/video checkboxes on every model row of the native provider editor, writing the model's `input` array into `settings.yaml` (with a backup next to the file). Catalog models without a user-customised route show the switches read-only.
+- **Input-modality switches** — text/image checkboxes on every model row of the native provider editor, writing the model's `input` array into the active profile's settings document (with a 0600 backup next to it). Catalog models without a user-customised route show the switches read-only.
 - **Narrow-screen drawer** — below 1024px the sidebar collapses to a small corner chip that keeps the host's own toggle; expanding it floats the full sidebar as a drawer over full-width content, and picking a session closes it again. The chip and the drawer swap atomically (no geometry animation to freeze on a busy main thread), and a tap that closes the drawer collapses it in that same frame instead of waiting for the host's re-render — so a phone running many sessions cannot strand the drawer half-expanded, and the closed chip never sits white over a rail the host has already emptied. The open drawer paints an opaque surface composed from the theme's own sidebar tokens, so a glass skin cannot turn it transparent. Opening slides the drawer in from the chip's side (transform/opacity only — width never animates) while a ghost copy fades the chip out, and the chip keeps the host's own whale at a pinned size no matter what a skin does to it.
 - **Narrow settings tabs** — below 700px the settings dialog's side navigation becomes a row of horizontally scrollable tabs.
 - **Full-width model menu** — below 700px the composer's model menu re-anchors to exactly the phone width (12px margins) instead of landing past the screen edge, while the host keeps owning the vertical placement above the trigger.
@@ -39,7 +39,7 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 Restart `dsh web`, then open the web profile on your phone: the restart row sits in Settings → General and the feature toggles in Settings → Plugins → dsh-mobile-upgrade. Attachments come from the host's own composer attachment system.
 
-Requires `dsh` 0.1.5-rc.1 or newer (the host's built-in attachment system replaced this plugin's upload feature).
+Requires `dsh` 0.2.0-rc.2 or newer (the host's built-in attachment system replaced this plugin's upload feature).
 
 ## Configuration
 

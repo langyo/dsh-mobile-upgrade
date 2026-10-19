@@ -151,7 +151,7 @@ function flag(name, dflt) {
 	}
 	return dflt;
 }
-	function apply(ctx, config) {
+	async function apply(ctx, config) {
 		// One line a user (or their agent) can grep the console for to answer
 		// "is the plugin even running on this page?" — the report that opens
 		// this section was a page where it was not, and nothing else on the
@@ -179,7 +179,7 @@ function flag(name, dflt) {
 				nsBusy = false;
 				return;
 			}
-			describe.then(function (res) {
+			return describe.then(function (res) {
 				nsBusy = false;
 				nsFails = 0;
 				var view = res && res.value !== undefined ? res.value : res;
@@ -206,6 +206,13 @@ function flag(name, dflt) {
 			loadNamespaceFlags();
 			setTimeout(nsPoll, nsFails === 0 ? 4000 : Math.min(4000 * Math.pow(2, nsFails), 60000));
 		};
+		// Feature flags are read synchronously at mount; take the first mirror
+		// (bounded) so a page loaded after a toggle change applies the stored
+		// values. The poll below keeps later changes in sync.
+		await Promise.race([
+			loadNamespaceFlags() || Promise.resolve(),
+			new Promise(function (resolve) { setTimeout(resolve, 2000); }),
+		]);
 		nsPoll();
 		// Leading+trailing throttle shared by the document-wide observers
 		// below: the first call in a quiet period runs at once so taps stay
@@ -374,11 +381,11 @@ function flag(name, dflt) {
 			});
 		}
 		// ---------- 3b. multimodal switches inside the native provider edit form ----------
-		// Appends an input-modality switch group (text/image/video) to every
+		// Appends an input-modality switch group (text/image) to every
 		// model row of the native provider editor; toggles write the model's
 		// input array through the plugin route (provider + model id), which
-		// edits settings.yaml with a backup. The host form's own save issues
-		// minimal path ops and never touches the input field.
+		// edits the active profile's settings document (0600 backup). The host
+		// form's own save issues minimal path ops and never touches the input field.
 		if (flag("modality", true)) {
 			var effectiveModels = null;
 			function findEffectiveModels(node, route, depth) {
@@ -490,7 +497,7 @@ function flag(name, dflt) {
 						var current = effectiveModelInput(route, modelId)
 							?? currentModelInput(route, modelId)
 							?? ["text"];
-						["text", "image", "video"].forEach(function (mod) {
+						["text", "image"].forEach(function (mod) {
 							var lb = mfxEl("label", "display:flex;align-items:center;gap:4px;cursor:pointer;flex:none;color:var(--dsw-alias-label-primary);");
 							lb.title = known ? "" : T("表单保存后生效", "Takes effect after the form is saved");
 							var cb = mfxEl("input");
@@ -499,7 +506,7 @@ function flag(name, dflt) {
 							cb.checked = known && current.indexOf(mod) !== -1;
 							cb.disabled = !known;
 							cb.addEventListener("change", function () {
-								var input = ["text", "image", "video"].filter(function (m) {
+								var input = ["text", "image"].filter(function (m) {
 									return bar.querySelector('input[data-mod="' + m + '"]').checked;
 								});
 								cb._busy = true;

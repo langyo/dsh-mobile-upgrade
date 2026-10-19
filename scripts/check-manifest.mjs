@@ -125,7 +125,8 @@ if (!files.includes(host) || !files.includes(client)) {
   fail('package.json', 'lib/index.js and client/client.js are both required')
 } else {
   for (const [path, pattern, what] of [
-    [host, /installSection\(ctx, name,/, 'settings section key'],
+    [host, /export const Config = z\.object\(/, 'Config settings schema'],
+    [host, /candidate\.ns === name/, 'settings section key'],
     [host, /const ROUTE_PREFIX = `\/plugins\/\$\{name\}`/, 'route prefix'],
     [client, new RegExp(`var PLUGIN_ID = ${quoted(name)}`), 'plugin id'],
     [client, /var ROUTE_PREFIX = "\/plugins\/" \+ PLUGIN_ID/, 'route prefix'],

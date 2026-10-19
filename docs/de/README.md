@@ -7,7 +7,7 @@ Mobilfreundliche Verbesserungen für das Web-Profil von [DeepSeek Harness](https
 ## Was Sie bekommen
 
 - **Neustart-Zeile** — ein Eintrag „Dienst neu starten" unter Einstellungen → Allgemein. Fragt zuerst nach, startet den `dsh`-Prozess neu und lädt die Seite automatisch neu, sobald der Dienst wieder antwortet.
-- **Eingabemodalitäts-Schalter** — Text/Bild/Video-Kontrollkästchen an jeder Modellzeile des nativen Provider-Editors, die das `input`-Array des Modells in die `settings.yaml` zurückschreibt (mit Sicherung neben der Datei). Katalogmodelle ohne benutzerdefinierte Route zeigen die Schalter nur lesend.
+- **Eingabemodalitäts-Schalter** — Text/Bild-Kontrollkästchen an jeder Modellzeile des nativen Provider-Editors, die das `input`-Array des Modells in das Einstellungsdokument des aktiven Profils zurückschreibt (mit einer 0600-Sicherung daneben). Katalogmodelle ohne benutzerdefinierte Route zeigen die Schalter nur lesend.
 - **Drawer für schmale Bildschirme** — unter 1024px schrumpft die Seitenleiste zu einem kleinen Eck-Chip, der den eigenen Umschalter des Hosts behält; ausgeklappt schwebt die volle Seitenleiste als Drawer über dem Inhalt in voller Breite, und die Wahl einer Sitzung schließt ihn wieder. Chip und Drawer werden atomar getauscht (keine Geometrie-Animation, die auf einem ausgelasteten Main-Thread einfrieren kann), und ein Tippen, das den Drawer schließt, klappt ihn im selben Frame ein, statt auf das erneute Rendern des Hosts zu warten — so kann ein Telefon mit vielen laufenden Sitzungen den Drawer nicht halb ausgeklappt zurücklassen, und der geschlossene Chip liegt nie weiß über einer Leiste, die der Host bereits geleert hat. Der ausgeklappte Drawer erhält eine opake Fläche aus den eigenen Seitenleisten-Tokens des Themas, sodass eine Glas-Skin ihn nicht transparent machen kann. Beim Öffnen gleitet der Drawer von der Chip-Seite herein (nur transform/opacity — die Breite wird nie animiert), während eine Geisterkopie den Chip ausblendet; der Chip behält den eigenen Wal des Hosts in fixierter Größe, egal was eine Skin damit anstellt.
 - **Einstellungen als Tabs auf schmalen Bildschirmen** — unter 700px wird die Seitennavigation des Einstellungsdialogs zu einer horizontal scrollbaren Tab-Leiste.
 - **Modellmenü in voller Bildschirmbreite** — unter 700px wird das Modellmenü des Composers genau auf die Telefonbreite (12px Ränder) verankert, statt vom Bildschirmrand abgeschnitten zu werden; die vertikale Platzierung über dem Auslöser übernimmt weiterhin der Host.
@@ -39,7 +39,7 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 Starten Sie `dsh web` neu und öffnen Sie das Web-Profil auf dem Telefon: Die Neustart-Zeile findet sich unter Einstellungen → Allgemein und die Funktionsschalter unter Einstellungen → Plugins → dsh-mobile-upgrade. Anhänge kommen aus dem eigenen Anhang-System des Composer des Hosts.
 
-Erfordert `dsh` 0.1.5-rc.1 oder neuer (das eingebaute Anhang-System des Hosts hat die Upload-Funktion dieses Plugins ersetzt).
+Erfordert `dsh` 0.2.0-rc.2 oder neuer (das eingebaute Anhang-System des Hosts hat die Upload-Funktion dieses Plugins ersetzt).
 
 ## Konfiguration
 
