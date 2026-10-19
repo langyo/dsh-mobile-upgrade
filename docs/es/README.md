@@ -7,7 +7,7 @@ Mejoras de calidad de vida para móviles en el perfil web de [DeepSeek Harness](
 ## Qué incluye
 
 - **Fila de reinicio** — una entrada "Reiniciar servicio" en Ajustes → General. Pide confirmación, reinicia el proceso de `dsh` y recarga la página automáticamente cuando el servicio vuelve a responder.
-- **Interruptores de modalidad de entrada** — casillas text/image/video en cada fila de modelo del editor de proveedores nativo, que escriben el array `input` del modelo en `settings.yaml` (con copia de seguridad junto al archivo). Los modelos de catálogo sin una ruta personalizada muestran los interruptores en solo lectura.
+- **Interruptores de modalidad de entrada** — casillas text/image en cada fila de modelo del editor de proveedores nativo, que escriben el array `input` del modelo en el documento de ajustes del perfil activo (con una copia de seguridad 0600 junto a él). Los modelos de catálogo sin una ruta personalizada muestran los interruptores en solo lectura con el valor predeterminado `text` (el `llm.listProviders` de dsh 0.2 no incluye una lista de modelos, así que el catálogo efectivo no puede refinarlos).
 - **Cajón para pantallas estrechas** — por debajo de 1024px la barra lateral se reduce a un pequeño chip en la esquina que conserva el toggle del propio host; al expandirla, la barra completa flota como un cajón sobre el contenido a ancho completo, y al elegir una sesión vuelve a cerrarse. El chip y el cajón se intercambian de forma atómica (sin animación de geometría que pueda congelarse cuando el hilo principal está ocupado), y un toque que cierra el cajón lo contrae en ese mismo fotograma en lugar de esperar a que el host vuelva a renderizar — de modo que un teléfono que ejecuta muchas sesiones a la vez no puede dejar el cajón atascado a medio expandir, y el chip cerrado nunca se queda en blanco sobre un raíl que el host ya ha vaciado. El cajón expandido pinta una superficie opaca compuesta con los tokens de barra lateral del propio tema, así que una skin de cristal no puede volverlo transparente. Al abrirse, el cajón se desliza desde el lado del chip (solo transform/opacity — el ancho nunca se anima) mientras una copia fantasma desvanece el chip, y el chip conserva la ballena del host con un tamaño fijo que ninguna skin puede alterar.
 - **Pestañas de ajustes en pantallas estrechas** — por debajo de 700px la navegación lateral del diálogo de ajustes se convierte en una fila de pestañas con desplazamiento horizontal.
 - **Menú de modelos a ancho completo** — por debajo de 700px el menú de modelos del compositor se re-ancla justo al ancho del teléfono (márgenes de 12px) en lugar de quedar fuera de la pantalla; el host sigue controlando la colocación vertical sobre el disparador.
@@ -39,11 +39,11 @@ dsh plugin --profile web add dsh-mobile-upgrade
 
 Reinicie `dsh web` y abra el perfil web en su teléfono: la fila de reinicio aparece en Ajustes → General y los interruptores en Ajustes → Plugins → dsh-mobile-upgrade. Los adjuntos usan el sistema de adjuntos propio del compositor del host.
 
-Requiere `dsh` 0.1.5-rc.1 o posterior (el sistema de adjuntos integrado del host reemplazó la función de subida de este plugin).
+Requiere `dsh` 0.2.0-rc.2 o posterior (el sistema de adjuntos integrado del host reemplazó la función de subida de este plugin).
 
 ## Configuración
 
-La tarjeta de ajustes del plugin admite:
+La tarjeta de ajustes del plugin enumera un interruptor por función (véase «Interruptores por función»); `restartEnabled` también controla la ruta de reinicio:
 
 | Clave | Por defecto | Significado |
 |---|---|---|
