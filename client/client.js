@@ -17,11 +17,12 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	// The build this bundle is. Kept in step with package.json by
 	// scripts/check-manifest.mjs, and surfaced in the settings row plus the
 	// self-update banner below so a device can always say what it runs.
-	var BUILD = "0.8.8";
+	var BUILD = "0.8.9";
 
 	// Most of what this plugin renders lives inside native host slots; the
-	// documented exceptions are the narrow-screen drawer chip, the network
-	// chip, the connection card, and the self-update banner — fixed-position
+	// documented exceptions are the narrow-screen drawer's floating button
+	// and scrim, the network chip, the connection card, and the self-update
+	// banner — fixed-position
 	// plain-DOM overlays that must stay alive while the host's own React
 	// tree is frozen or wedged.
 	//
@@ -29,14 +30,17 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	//      models/providers editor in the Models tab (localized labels).
 	//   2. narrow-screen settle: the fullscreen tool-details overlay — whose
 	//      close button is inert upstream — is not rendered on narrow screens.
-//   3. narrow drawer: the collapsed rail keeps only the whale toggle;
-//      the expanded sidebar floats above full-width content as a drawer
-//      (the whale is the host's own toggle, hHd-Xa_collapsed is the state).
-//      The takeover flips atomically — no geometry transition to freeze on a
-//      busy main thread — and a tap that closes it moves the geometry in the
-//      same frame instead of waiting for the host's re-render. The scrim is
-//      mounted inside the app root (overlayMount) so skins that lift #root
-//      into a stacking context cannot paint it over the drawer's contents.
+	//   3. narrow drawer: collapsed, the host's sidebar column is parked fully
+	//      off-screen (invisible) and a plain-DOM floating button carrying its
+	//      own icon is the only thing left visible; opening slides the sidebar
+	//      in as a drawer (the toggle inside the drawer header is the host's
+	//      own, hHd-Xa_collapsed is the host rail's state signal). The panel's
+	//      width never changes, so the slide is transform-only and a busy main
+	//      thread cannot freeze it halfway; a tap that closes the drawer moves
+	//      the geometry in the same frame instead of waiting for the host's
+	//      re-render. The scrim is mounted inside the app root (overlayMount)
+	//      so skins that lift #root into a stacking context cannot paint it
+	//      over the drawer's contents.
 //   4. narrow settings: the dialog's side nav becomes horizontal top tabs.
 //   5. narrow model menu: the composer's model menu lands full-width.
 //   6. network watch: a wrapper around window.fetch tracks /api/ requests
@@ -62,7 +66,8 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //      no white-flashing sidebar. A host state that does not survive the
 //      settle window is ignored entirely, so a remount's transient
 //      collapsed/expanded frame cannot move the takeover, and drawer close
-//      taps (the whale, the scrim, a session row) collapse it on the spot and
+//      taps (the drawer's header toggle, the scrim, a session row) collapse
+//      it on the spot and
 //      then chase the host's toggle only if its own state has not followed.
 // 10. agents guard: the host serves the subagent catalog by enumerating the
 //      ENTIRE session corpus per request (~1s at a 2400-session history),
@@ -577,20 +582,30 @@ function mfxTr(hans, hant, en) {
 			};
 			setInterval(ensureModalitySwitches, 900);
 		}
-		// ---------- 4. narrow drawer: the collapsed rail keeps only the whale;
-		// the expanded sidebar floats above full-width content as a drawer ----------
-		// The whale button is the host's own sidebar toggle (hHd-Xa_toggle);
-		// hHd-Xa_collapsed on the rail root is the state signal.
+		// ---------- 4. narrow drawer: a floating icon button plus a real
+		// off-canvas sidebar ----------
+		// Collapsed, the host's sidebar column is parked fully off-screen —
+		// invisible, out of the way, carrying no transform at rest — and the
+		// plugin's own floating button (plain DOM, its own sanitized icon) is
+		// the only thing left visible. The button never IS the sidebar: the
+		// old design shrank the rail into a 56px chip and had to pin the
+		// whale against every host rebuild and skin separately, and any of
+		// those hooks going stale leaked rail content into the chip (the
+		// "DSH / 对话" squeeze the 2026-10-21 report screenshotted). Opening
+		// slides the panel in from the button's side; closing slides it back
+		// out while the button fades in. The host rail's own state
+		// (hHd-Xa_collapsed) only decides when the takeover may land — the
+		// plugin owns the geometry.
 		if (flag("drawer", true)) {
 			// The narrow/desktop decision must use the same measure as the
 			// drawer's own @media (max-width: 1023px) rules. window.innerWidth
 			// counts a classic scrollbar that media widths exclude (and
 			// fractional zoom can land between the two), so a desktop window
 			// near 1024px could classify as desktop in the JS while the CSS
-			// still styles it as mobile: the chip swallows the sidebar and
-			// the expanded rail renders inside the closed chip with no
-			// drawer-open class to rescue it. One shared query decides for
-			// both sides, so the modes can no longer disagree.
+			// still styles it as mobile: the off-canvas panel would swallow
+			// the sidebar with no drawer-open class to rescue it. One shared
+			// query decides for both sides, so the modes can no longer
+			// disagree.
 			var desktopMQ = window.matchMedia("(min-width: 1024px)");
 			var scrim = document.createElement("div");
 			scrim.id = "mfx-scrim";
@@ -614,88 +629,18 @@ function mfxTr(hans, hant, en) {
 				"#mfx-scrim { position: fixed; inset: 0; z-index: 120; background: rgba(0,0,0,.32); display: none; }",
 				"@media (max-width: 1023px) {",
 				/* the content column always spans the full width — the rail never
-				   reserves a grid track, not even when collapsed. Explicit
-				   placement: the fixed-position chip leaves the grid flow, and
-				   without pinning, auto-placement drops the center column into
-				   the 0px first track (blank content) and the details column
-				   into the full-width second track. */
+				   reserves a grid track. Explicit placement: the fixed-position
+				   drawer leaves the grid flow, and without pinning, auto-placement
+				   drops the center column into the 0px first track (blank content)
+				   and the details column into the full-width second track. */
 				"  [class*=\"pI_x6G_frame\"] { grid-template-columns: 0px minmax(0,1fr) 0px !important; }",
 				"  [class*=\"pI_x6G_frame\"] > [class*=\"pI_x6G_sidebarCol\"] { grid-column: 1; }",
 				"  [class*=\"pI_x6G_frame\"] > [class*=\"pI_x6G_centerCol\"] { grid-column: 2; }",
 				"  [class*=\"pI_x6G_frame\"] > [class*=\"pI_x6G_detailsCol\"] { grid-column: 3; }",
-				/* the rail floats: an AssistiveTouch-style translucent circle when
-				   collapsed, the full drawer when open. No filter/blur here — a
-				   filter would turn the chip into the containing block for the
-				   fixed-position settings dialog that portals inside the sidebar
-				   subtree. The gray tint is visible on light and dark pages
-				   alike, which a white tint never is.
-				   No transition on the geometry either: the chip and the drawer
-				   are two settled states, and animating between them is what the
-				   phone report caught frozen halfway. A transition advances with
-				   frames, so on a main thread busy with streaming sessions the
-				   takeover paints at whatever offset the last rendered frame
-				   reached — and because every mirror flip restarts it, the drawer
-				   can sit at a half-expanded position for seconds. Flipping the
-				   two states atomically costs a slide and buys a takeover that
-				   is never in between. */
-				"  [class*=\"pI_x6G_sidebarCol\"] { position: fixed; top: 10px; left: 10px; width: 56px;",
-				"    height: 56px !important; z-index: 130; overflow: hidden;",
-				"    box-shadow: 0 2px 14px rgba(0,0,0,.18); touch-action: none;",
-				"    background: rgba(128,132,140,.28) !important; }",
-				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] { border-radius: 50% !important; }",
-				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] { height: auto !important;",
-				"    min-height: 0 !important; padding: 0 !important; }",
-				/* the toggle fills the circle exactly — anchored against the
-				   closed chip, NOT the host's collapsed class: host 0.2 keeps
-				   the class but wraps the toggle in a 36px logoRow, so inset:0
-				   resolved against that and the whale sat above center, with
-				   skins free to scale it through their brand-mark hooks (the
-				   "缩放问题" report). Explicit chip-height anchoring, a pinned
-				   24x17.66 whale (the svg's own viewBox ratio) and a
-				   transform/scale kill across the chip's subtree make the
-				   whale deterministic under any skin. Scoped to the closed
-				   chip: the open drawer's header toggle keeps its normal
-				   layout. */
-				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_toggle\"]",
-				"  { position: absolute !important; top: 0 !important; left: 0 !important;",
-				"    width: 100% !important; height: 56px !important; display: grid !important;",
-				"    place-items: center !important; margin: 0 !important; padding: 0 !important; }",
-				/* skins hijack the whale: orca-link sets display:none on the
-				   brand-mark svg (matched through data-orca-link-brand on the
-				   toggle) and paints its own oversized logo inside the rail —
-				   the giant clipped DSH the report screenshotted. Force the
-				   whale back, drop every sibling/pseudo the skin injects, and
-				   pin the svg to its viewBox ratio. */
-				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_railMark\"] svg,",
-				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [data-slot=\"sidebar.brand.mark\"] svg",
-				"  { display: block !important; opacity: 1 !important; width: 24px !important; height: 17.66px !important; transform: none !important; }",
-				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_toggle\"] > *:not([class*=\"hHd-Xa_railMark\"]),",
-				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_railMark\"] > *:not([data-slot=\"sidebar.brand.mark\"]),",
-				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [data-slot=\"sidebar.brand.mark\"] > *:not(svg),",
-				/* and the logo row's other tenants: skins park an absolutely
-				   positioned wordmark logo (data-orca-link-wordmark, 118px
-				   "DSH") next to the toggle inside the 56px circle — hide every
-				   logoRow sibling that is not the toggle itself */
-				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_logoRow\"] > *:not([class*=\"hHd-Xa_toggle\"])",
-				"  { display: none !important; }",
-				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_toggle\"]::before,",
-				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_toggle\"]::after,",
-				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_railMark\"]::before,",
-				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [class*=\"hHd-Xa_railMark\"]::after,",
-				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [data-slot=\"sidebar.brand.mark\"]::before,",
-				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] [data-slot=\"sidebar.brand.mark\"]::after",
-				"  { display: none !important; content: none !important; }",
-				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] * { transform: none !important; scale: none !important; }",
-				/* collapsed: hide everything except the whale toggle */
-				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] [class*=\"hHd-Xa_newSession\"],",
-				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] [class*=\"bhn1Oq_iconButton\"],",
-				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] [class*=\"bhn1Oq_searchButton\"],",
-				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] [data-slot=\"sidebar.footer.action\"],",
-				"  [class*=\"hHd-Xa_root\"][class*=\"hHd-Xa_collapsed\"] [class*=\"VOzbGW_railRow\"] { display: none !important; }",
-				/* expanded: the full drawer, always on the side the chip is
-				   attached to; !important also neutralizes the inline
-				   left/right/top the drag position stores.
-				   The surface must be OPAQUE: the host builds the desktop
+				/* the sidebar column is ALWAYS the drawer surface on mobile: a
+				   full-height panel of drawer width. It is never a shrunken chip —
+				   the collapsed look belongs to the plugin's own floating button
+				   below. The surface must be OPAQUE: the host builds the desktop
 				   sidebar from glassy translucent fills (theme tokens resolve
 				   to alpha colors — more so under the glass skins) composited
 				   over the page body, and this drawer floats over arbitrary
@@ -704,35 +649,49 @@ function mfxTr(hans, hant, en) {
 				   chosen per theme (the static palette is theme-invariant, so
 				   the dark tone is picked through body[data-ds-dark-theme])
 				   under the host's own sidebar-fill / layer-1 / bg-base tints,
-				   which carry the exact skin+theme hue. No backdrop-filter
-				   either: a filter would make this element the containing
-				   block for the fixed-position settings dialog that portals
-				   inside the sidebar subtree. */
-				"  html.mfx-drawer-open [class*=\"pI_x6G_sidebarCol\"], html.mfx-drawer-closing [class*=\"pI_x6G_sidebarCol\"] { width: min(280px, 84vw); bottom: 0;",
-				"    height: auto !important; top: 0 !important; left: 0 !important; right: auto !important;",
+				   which carry the exact skin+theme hue. No filter/blur/backdrop
+				   and no transform at rest either — any of those would make this
+				   element the containing block for the fixed-position settings
+				   dialog that portals inside the sidebar subtree, and a settled
+				   state must leave that dialog on the real viewport. */
+				"  [class*=\"pI_x6G_sidebarCol\"] { position: fixed; top: 0 !important; bottom: 0 !important;",
+				"    left: 0 !important; right: auto !important; width: min(280px, 84vw) !important;",
+				"    height: auto !important; z-index: 130; overflow: hidden;",
 				"    border-radius: 0 !important; box-shadow: 0 0 44px rgba(0,0,0,.4);",
 				"    background-color: #ffffff !important; -webkit-backdrop-filter: none; backdrop-filter: none;",
 				"    background-image: linear-gradient(var(--dsw-specific-sidebar-fill, transparent), var(--dsw-specific-sidebar-fill, transparent)),",
 				"      linear-gradient(var(--dsw-alias-bg-layer-1, transparent), var(--dsw-alias-bg-layer-1, transparent)),",
 				"      linear-gradient(var(--dsw-alias-bg-base, transparent), var(--dsw-alias-bg-base, transparent)) !important; }",
-				"  html.mfx-drawer-open body[data-ds-dark-theme] [class*=\"pI_x6G_sidebarCol\"], html.mfx-drawer-closing body[data-ds-dark-theme] [class*=\"pI_x6G_sidebarCol\"] { background-color: #151517 !important; }",
-				"  html.mfx-drawer-open.mfx-chip-right [class*=\"pI_x6G_sidebarCol\"], html.mfx-drawer-closing.mfx-chip-right [class*=\"pI_x6G_sidebarCol\"] { left: auto !important; right: 0 !important; }",
-				"  html.mfx-drawer-open #mfx-scrim, html.mfx-drawer-closing #mfx-scrim { display: block; }",
-				/* open/close motion — transform and opacity ONLY, so every frame
-				   runs on the compositor and a busy main thread can never catch
-				   the drawer halfway across the screen (the width-changing
-				   animation the phone report froze is still banned: the width
-				   flip between chip and drawer stays atomic, and the closing
-				   state simply re-uses the drawer geometry until its timer
-				   lands it back on the chip). No opacity on the drawer itself
-				   while sliding: sub-1 opacity would make it the containing
-				   block for the fixed settings dialog that portals inside the
-				   sidebar subtree — the fade lives on the chip ghost and the
-				   scrim instead. */
-				"  html.mfx-drawer-anim-in [class*=\"pI_x6G_sidebarCol\"] { animation: mfxDrawerIn 300ms cubic-bezier(.25,.7,.3,1) both; }",
-				"  html.mfx-drawer-closing [class*=\"pI_x6G_sidebarCol\"] { animation: mfxDrawerOut 260ms ease-in both; }",
+				"  html.mfx-chip-right [class*=\"pI_x6G_sidebarCol\"] { left: auto !important; right: 0 !important; }",
+				"  body[data-ds-dark-theme] [class*=\"pI_x6G_sidebarCol\"] { background-color: #151517 !important; }",
+				/* closed: parked out of sight entirely. visibility:hidden at
+				   rest — the panel is simply not there, whatever the host
+				   renders inside it (including a rail the host left expanded
+				   under a closed takeover: the stale content stays invisible
+				   and costs nothing). The -100vw offsets park it geometrically
+				   off-screen as well, so even a skin rule forcing visibility on
+				   a descendant cannot paint it over the page (visibility is
+				   inheritable; geometry is not negotiable). Both sides set:
+				   over-constrained absolute positioning resolves to left+width
+				   in LTR, and whichever edge the base rule sent to auto is the
+				   one that lands at -100vw. */
+				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] { visibility: hidden; left: -100vw !important; right: -100vw !important; }",
+				"  html.mfx-drawer-open [class*=\"pI_x6G_sidebarCol\"] { visibility: visible; }",
+				/* open/close motion — transform ONLY while animating, so every
+				   frame runs on the compositor and a busy main thread can never
+				   catch the drawer halfway across the screen. The geometry never
+				   changes width any more (the old chip<->drawer width flip is
+				   gone with the chip), so there is no width animation to ban in
+				   the first place; the closing state re-uses the drawer geometry
+				   until its timer lands it on the hidden settled state. No
+				   opacity on the drawer itself while sliding: sub-1 opacity
+				   would make it the containing block for the fixed settings
+				   dialog that portals inside the sidebar subtree. */
+				"  html.mfx-drawer-anim-in [class*=\"pI_x6G_sidebarCol\"] { visibility: visible; animation: mfxDrawerIn 300ms cubic-bezier(.25,.7,.3,1) both; }",
+				"  html.mfx-drawer-closing [class*=\"pI_x6G_sidebarCol\"] { visibility: visible; animation: mfxDrawerOut 260ms ease-in both; }",
 				"  html.mfx-chip-right.mfx-drawer-anim-in [class*=\"pI_x6G_sidebarCol\"] { animation-name: mfxDrawerInRight; }",
 				"  html.mfx-chip-right.mfx-drawer-closing [class*=\"pI_x6G_sidebarCol\"] { animation-name: mfxDrawerOutRight; }",
+				"  html.mfx-drawer-open #mfx-scrim, html.mfx-drawer-closing #mfx-scrim { display: block; }",
 				"  html.mfx-drawer-open #mfx-scrim { animation: mfxScrimIn 300ms ease both; }",
 				"  html.mfx-drawer-closing #mfx-scrim { animation: mfxScrimOut 260ms ease-in both; pointer-events: none; }",
 				"  @keyframes mfxDrawerIn { from { transform: translateX(-100%); } to { transform: none; } }",
@@ -745,40 +704,97 @@ function mfxTr(hans, hant, en) {
 			].join("\n");
 			document.head.appendChild(dstyle);
 
-			/* the chip ghost: a plain-DOM copy of the collapsed chip that
-			   fades out while the drawer slides in and fades back in while it
-			   slides out — the one element that carries the chip's 渐变消失,
-			   since the real chip element IS the drawer (one node, two
-			   settled looks) and can only flip atomically. */
-			var gstyle = document.createElement("style");
-			gstyle.id = "mfx-chip-ghost-style";
-			gstyle.textContent = [
-				"#mfx-chip-ghost { position: fixed; z-index: 131; width: 56px; height: 56px;",
-				"  border-radius: 50%; background: rgba(128,132,140,.28);",
-				"  box-shadow: 0 2px 14px rgba(0,0,0,.18); display: grid; place-items: center;",
-				"  pointer-events: none; opacity: 0; }",
-				"#mfx-chip-ghost svg { display: block !important; opacity: 1 !important; width: 24px !important; height: 17.66px !important; transform: none !important; }",
-				"#mfx-chip-ghost.mfx-ghost-out { animation: mfxGhostFadeOut 300ms ease-out both; }",
-				"#mfx-chip-ghost.mfx-ghost-in { animation: mfxGhostFadeIn 240ms ease-out both; }",
-				"@keyframes mfxGhostFadeOut { from { opacity: .95; } to { opacity: 0; } }",
-				"@keyframes mfxGhostFadeIn { from { opacity: 0; } to { opacity: .95; } }"
+			// the floating button: the plugin's own plain-DOM element, so the
+			// collapsed look can never be broken by a host rebuild or a skin
+			// (the old design shrank the host's sidebar column into a 56px
+			// chip and had to fight every skin that restyled the rail inside
+			// it). It carries the host's own whale icon once the rail is in
+			// the DOM — cloned and stripped of class/style/data-* hooks, so
+			// skin rules cannot hide or resize the copy — and a bundled
+			// fallback glyph until then. Mounted through overlayMount with
+			// the scrim, for the same stacking-context reasons.
+			var fab = document.createElement("button");
+			fab.type = "button";
+			fab.id = "mfx-fab";
+			var fabLabel = mfxTr("打开菜单", "開啟選單", "Open menu");
+			fab.setAttribute("aria-label", fabLabel);
+			fab.title = fabLabel;
+			fab.className = "mfx-fab-fallback";
+			fab.innerHTML =
+				'<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>';
+			overlayMount(fab);
+
+			var fstyle = document.createElement("style");
+			fstyle.id = "mfx-fab-style";
+			fstyle.textContent = [
+				"#mfx-fab { position: fixed; top: 10px; left: 10px; z-index: 132;",
+				"  width: 56px; height: 56px; border-radius: 50%; border: 0; padding: 0; margin: 0;",
+				"  display: grid; place-items: center; cursor: pointer; touch-action: none;",
+				"  background: rgba(128,132,140,.28); box-shadow: 0 2px 14px rgba(0,0,0,.18);",
+				"  -webkit-tap-highlight-color: transparent; transition: opacity 240ms ease; }",
+				"#mfx-fab svg { display: block !important; width: 24px !important; height: 17.66px !important;",
+				"  transform: none !important; }",
+				"#mfx-fab.mfx-fab-fallback svg { width: 20px !important; height: 20px !important; }",
+				"body:not([data-ds-dark-theme]) #mfx-fab { color: #26282b; }",
+				"body[data-ds-dark-theme] #mfx-fab { color: #ededf0; }",
+				/* the button fades out while the drawer stands (open or sliding)
+				   and back in when it lands — CSS-only, driven by the same html
+				   classes the drawer geometry uses, so the two can never drift */
+				"html.mfx-drawer-open #mfx-fab, html.mfx-drawer-closing #mfx-fab { opacity: 0; pointer-events: none; }",
+				"@media (min-width: 1024px) { #mfx-fab { display: none; } }"
 			].join("\n");
-			document.head.appendChild(gstyle);
+			document.head.appendChild(fstyle);
+
+			// one whale hunt per page: until it succeeds, every sync retries
+			// the cheap query — the sidebar column is not mounted yet when the
+			// plugin applies, and the first paint of the button must not
+			// depend on the host's mount order.
+			var fabIconDone = false;
+			function updateFabIcon() {
+				if (fabIconDone) return;
+				try {
+					var svg = document.querySelector('[class*="hHd-Xa_railMark"] svg')
+						|| document.querySelector('[data-slot="sidebar.brand.mark"] svg')
+						|| document.querySelector('[class*="hHd-Xa_brandMark"] svg')
+						|| document.querySelector('[class*="hHd-Xa_toggle"] svg');
+					if (!svg) return;
+					var clone = svg.cloneNode(true);
+					var strip = [clone].concat([].slice.call(clone.querySelectorAll("*")));
+					for (var k = 0; k < strip.length; k++) {
+						var el = strip[k];
+						// class/style/data-*/id: every hook a skin (or the
+						// host's own stylesheet, via a #id rule) could use to
+						// hide or restyle the copy. The clone must answer only
+						// to #mfx-fab's own rules.
+						el.removeAttribute("class");
+						el.removeAttribute("style");
+						el.removeAttribute("id");
+						var attrs = [].slice.call(el.attributes);
+						for (var a = 0; a < attrs.length; a++) {
+							if (/^data-/i.test(attrs[a].name)) el.removeAttribute(attrs[a].name);
+						}
+					}
+					fab.innerHTML = "";
+					fab.appendChild(clone);
+					fab.classList.remove("mfx-fab-fallback");
+					fabIconDone = true;
+				} catch (e) {}
+			}
 
 			var drawerOpen = null;
-			// open/close motion: compositor-only transform keyframes, the chip
-			// fades through a plain-DOM ghost (the real chip element IS the
-			// drawer — one node, two settled looks — so its own flip stays
-			// atomic and the ghost carries the fade). Skipped entirely under
-			// prefers-reduced-motion; the timer lands every animated state on
-			// its final look even if animationend never fires.
+			// open/close motion: compositor-only transform keyframes on the
+			// panel, while the floating button fades through its own opacity
+			// transition (a plain-DOM element with no fixed-position
+			// descendants, so the containing-block trap does not apply to it).
+			// Skipped entirely under prefers-reduced-motion; the timer lands
+			// every animated state on its final look even if animationend
+			// never fires.
 			var ANIM_MS = 300;
 			var animTimer = null;
-			var ghost = null;
 			var reduceMotion = false;
 			try { reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
-			// AssistiveTouch-style chip position: persisted attachment side and
-			// vertical offset; the drawer opens on the attached side
+			// AssistiveTouch-style button position: persisted attachment side
+			// and vertical offset; the drawer opens on the attached side
 			var chipSide = "left";
 			var chipTop = 10;
 			try {
@@ -789,153 +805,150 @@ function mfxTr(hans, hant, en) {
 			function clampChipTop(t) {
 				return Math.max(10, Math.min(window.innerHeight - 66, t));
 			}
-			// Applied chip geometry, so the writes below can be skipped when
+			// Applied button geometry, so the writes below can be skipped when
 			// nothing moved: this runs on every throttled observer pass and every
 			// 800ms tick, and each write invalidates style for a fixed element
 			// that floats over the whole page — during a storm that is pure
 			// overhead for a value that has not changed.
-			var chipApplied = { el: undefined, side: null, edge: null, top: null, desktop: null };
-			function applyChipPos() {
-				var chip = document.querySelector('[class*="pI_x6G_sidebarCol"]');
-				if (chipApplied.el !== chip) {
-					// a remount hands over a fresh element with no inline geometry
-					chipApplied.el = chip;
-					chipApplied.edge = null;
-					chipApplied.top = null;
+			var fabApplied = { el: undefined, side: null, edge: null, top: null, desktop: null };
+			function applyFabPos() {
+				if (fabApplied.el !== fab) {
+					fabApplied.el = fab;
+					fabApplied.edge = null;
+					fabApplied.top = null;
 				}
 				if (desktopMQ.matches) {
-					// desktop: back to a plain grid column. A drag interrupted
-					// by a remount can leave a stale moved flag that would
-					// swallow the first click on the restored sidebar — clear
-					// both the inline position and the flag on the way back.
-					if (chipApplied.desktop !== true) {
-						chipApplied.desktop = true;
-						if (chip) { chip.style.left = ""; chip.style.right = ""; chip.style.top = ""; }
+					// desktop: the real sidebar is a plain grid column and the
+					// button is display:none (media query). Drop the side class
+					// so a later resize back to narrow starts from the stored
+					// side, not from whatever a mid-drag release left behind.
+					if (fabApplied.desktop !== true) {
+						fabApplied.desktop = true;
 						document.documentElement.classList.remove("mfx-chip-right");
-						chipApplied.side = null;
-						chipApplied.edge = null;
-						chipApplied.top = null;
+						fabApplied.side = null;
+						fabApplied.edge = null;
+						fabApplied.top = null;
+						// an open gesture left hanging when the viewport folded
+						// to desktop must not land on the way back: the desktop
+						// sidebar reads EXPANDED, so the landing condition
+						// (collapsed === false) would be trivially true and the
+						// drawer would open by itself after the round trip —
+						// the desktop excursion, not the user's tap, decided it
+						pendingOpen = false;
+						openChaseArmed = false;
 					}
-					chipDrag.active = false;
-					chipDrag.moved = false;
+					fabDrag.active = false;
+					fabDrag.moved = false;
 					return;
 				}
-				chipApplied.desktop = false;
+				fabApplied.desktop = false;
 				chipTop = clampChipTop(chipTop);
-				if (chipApplied.side !== chipSide) {
-					chipApplied.side = chipSide;
+				if (fabApplied.side !== chipSide) {
+					fabApplied.side = chipSide;
 					document.documentElement.classList.toggle("mfx-chip-right", chipSide === "right");
 				}
-				if (!chip) return;
-				if (chipApplied.edge !== chipSide) {
-					chipApplied.edge = chipSide;
-					if (chipSide === "right") { chip.style.left = "auto"; chip.style.right = "10px"; }
-					else { chip.style.right = "auto"; chip.style.left = "10px"; }
+				if (fabApplied.edge !== chipSide) {
+					fabApplied.edge = chipSide;
+					if (chipSide === "right") { fab.style.left = "auto"; fab.style.right = "10px"; }
+					else { fab.style.right = "auto"; fab.style.left = "10px"; }
 				}
-				if (chipApplied.top !== chipTop) {
-					chipApplied.top = chipTop;
-					chip.style.top = chipTop + "px";
+				if (fabApplied.top !== chipTop) {
+					fabApplied.top = chipTop;
+					fab.style.top = chipTop + "px";
 				}
 			}
-			var chipDrag = { active: false, moved: false, x: 0, y: 0, l: 0, t: 0, w: 56, curL: 10, curT: 10 };
+			var fabDrag = { active: false, moved: false, x: 0, y: 0, l: 0, t: 0, w: 56, curL: 10, curT: 10 };
 			document.addEventListener("pointerdown", function (ev) {
 				if (desktopMQ.matches) return;
 				if (document.documentElement.classList.contains("mfx-drawer-open")) return;
-				// a drag during the closing slide would recompute the chip side
+				// a drag during the closing slide would recompute the button side
 				// on pointerup and swap mfx-chip-right mid-animation — the
 				// animation-name change restarts the slide from the opposite
-				// edge; drags wait until the chip has landed
+				// edge; drags wait until the drawer has landed
 				if (document.documentElement.classList.contains("mfx-drawer-closing")) return;
-				var chip = ev.target && ev.target.closest ? ev.target.closest('[class*="pI_x6G_sidebarCol"]') : null;
-				if (!chip) return;
-				chipDrag.active = true;
-				chipDrag.moved = false;
-				chipDrag.x = ev.clientX;
-				chipDrag.y = ev.clientY;
-				var r = chip.getBoundingClientRect();
-				chipDrag.l = r.left;
-				chipDrag.t = r.top;
-				chipDrag.w = r.width;
-				chipDrag.curL = r.left;
-				chipDrag.curT = r.top;
-				// no transition to suspend: the geometry flips atomically, so a
-				// drag only writes the position it is already painting
+				if (!ev.target || !ev.target.closest || !ev.target.closest("#mfx-fab")) return;
+				fabDrag.active = true;
+				fabDrag.moved = false;
+				fabDrag.x = ev.clientX;
+				fabDrag.y = ev.clientY;
+				var r = fab.getBoundingClientRect();
+				fabDrag.l = r.left;
+				fabDrag.t = r.top;
+				fabDrag.w = r.width;
+				fabDrag.curL = r.left;
+				fabDrag.curT = r.top;
 			}, true);
 			document.addEventListener("pointermove", function (ev) {
-				if (!chipDrag.active) return;
-				var dx = ev.clientX - chipDrag.x;
-				var dy = ev.clientY - chipDrag.y;
-				var chip = document.querySelector('[class*="pI_x6G_sidebarCol"]');
-				if (!chip) return;
-				if (!chipDrag.moved && Math.abs(dx) + Math.abs(dy) > 8) {
+				if (!fabDrag.active) return;
+				var dx = ev.clientX - fabDrag.x;
+				var dy = ev.clientY - fabDrag.y;
+				if (!fabDrag.moved && Math.abs(dx) + Math.abs(dy) > 8) {
 					// capture only once a real drag starts: capturing on
-					// pointerdown would retarget the later click to the chip
-					// and the host's toggle would never see the tap
-					chipDrag.moved = true;
-					try { chip.setPointerCapture(ev.pointerId); } catch (e) {}
+					// pointerdown would retarget the later click to the button
+					// and the open request would never see the tap
+					fabDrag.moved = true;
+					try { fab.setPointerCapture(ev.pointerId); } catch (e) {}
 				}
-				if (!chipDrag.moved) return;
-				chipDrag.curL = Math.max(8, Math.min(window.innerWidth - chipDrag.w - 8, chipDrag.l + dx));
-				chipDrag.curT = clampChipTop(chipDrag.t + dy);
+				if (!fabDrag.moved) return;
+				fabDrag.curL = Math.max(8, Math.min(window.innerWidth - fabDrag.w - 8, fabDrag.l + dx));
+				fabDrag.curT = clampChipTop(fabDrag.t + dy);
 				// the drag writes the position itself, so the applied-geometry
 				// cache no longer describes the element: invalidate the edge so
-				// the release still snaps the chip back to its side
-				chipApplied.edge = null;
-				chip.style.right = "auto";
-				chip.style.left = chipDrag.curL + "px";
-				chip.style.top = chipDrag.curT + "px";
+				// the release still snaps the button back to its side
+				fabApplied.edge = null;
+				fab.style.right = "auto";
+				fab.style.left = fabDrag.curL + "px";
+				fab.style.top = fabDrag.curT + "px";
 			}, true);
 			document.addEventListener("pointerup", function (ev) {
-				if (!chipDrag.active) return;
-				chipDrag.active = false;
-				var chip = document.querySelector('[class*="pI_x6G_sidebarCol"]');
-				if (!chipDrag.moved) return;
-				chipSide = chipDrag.curL + chipDrag.w / 2 < window.innerWidth / 2 ? "left" : "right";
-				chipTop = chipDrag.curT;
+				if (!fabDrag.active) return;
+				fabDrag.active = false;
+				if (!fabDrag.moved) return;
+				chipSide = fabDrag.curL + fabDrag.w / 2 < window.innerWidth / 2 ? "left" : "right";
+				chipTop = fabDrag.curT;
 				try {
 					window.localStorage.setItem("mfx-chip-side", chipSide);
 					window.localStorage.setItem("mfx-chip-top", String(chipTop));
 				} catch (e) {}
-				// the edge snap is instant now (no transition), so there is no
-				// reflow to flush and no animation to catch mid-flight
-				applyChipPos();
+				// the edge snap is instant (no transition on geometry), so
+				// there is no reflow to flush and no animation to catch
+				applyFabPos();
 			}, true);
 			document.addEventListener("click", function (ev) {
-				if (!chipDrag.moved) return;
-				if (ev.target && ev.target.closest && ev.target.closest('[class*="pI_x6G_sidebarCol"]')) {
-					// a drag must not flip the drawer on release
-					ev.stopPropagation();
+				if (!fabDrag.moved) return;
+				if (ev.target && ev.target.closest && ev.target.closest("#mfx-fab")) {
+					// a drag must not open the drawer on release. stopImmediate-
+					// Propagation, not stopPropagation: both listeners live on
+					// the SAME document node, and stopPropagation never stops
+					// same-node listeners — the release click would still reach
+					// the takeover handler below and open the drawer after
+					// every completed drag.
+					ev.stopImmediatePropagation();
 					ev.preventDefault();
-					chipDrag.moved = false;
+					fabDrag.moved = false;
 				}
 			}, true);
-			// A reconnect resync unmounts and remounts the rail root for a few
-			// frames at a time, and the host re-renders it constantly while
-			// sessions stream. That churn used to be mirrored, and two attempts
-			// to be clever about it (a settle window before obeying, and clicking
-			// the host's toggle to bring it along) produced exactly the two phone
-			// reports this block exists to prevent: the drawer closing under a tap
-			// that had nothing to do with closing it, and the drawer appearing by
-			// itself while the user was typing — a click sent to "help" flipped
-			// the host's rail and the mirror obeyed the flip.
-			//
-			// So the takeover's state is the user's, full stop:
+			// The takeover's state is the user's, full stop:
 			//
 			//   * the host's rail class is read ONCE, to start in whatever state
 			//     the host is in, and never again decides anything;
-			//   * the whale is the host's own button — tapping it flips the host
-			//     and this plugin together, which is why the plugin reads the
-			//     state it can see rather than the host's class;
-			//   * the scrim and a session row are ours — closing through them asks
-			//     the host to collapse exactly once, and if that click is swallowed
-			//     the takeover stays closed anyway, because a closed takeover hides
-			//     the rail inside the 56px chip and the host being open underneath
-			//     costs nothing.
-			var railLastSeen = 0;
-			var RAIL_GRACE_MS = 600;
+			//   * the floating button opens: it asks the host's rail to expand
+			//     (one chase click on the host's own toggle) and lands the
+			//     drawer as soon as the host has the expanded content mounted —
+			//     whenever that lands on a busy phone, not inside a window that
+			//     can expire first;
+			//   * the scrim and a session row are ours — closing through them
+			//     slides the panel out on the spot, then asks the host to
+			//     collapse exactly once; if that chase is swallowed, the
+			//     takeover stays closed anyway, because a closed takeover
+			//     parks the panel out of sight and the host being open
+			//     underneath costs nothing;
+			//   * the toggle inside the drawer's header is the host's own —
+			//     tapping it closes on the spot.
 			var initialized = false;
 			var drawerStart = Date.now();
 			var pendingOpen = false;
+			var openChaseArmed = false;
 			var hostAskedOnce = false;
 			function railRoot() {
 				try { return document.querySelector('[class*="hHd-Xa_root"]'); } catch (e) { return null; }
@@ -945,76 +958,49 @@ function mfxTr(hans, hant, en) {
 				if (!rail) return null;
 				return String(rail.className).indexOf("hHd-Xa_collapsed") !== -1;
 			}
-			function mfxGhostChip(mode) {
-				// mode "out": the drawer is opening — the chip fades away.
-				// mode "in": the drawer is closing — the chip fades back.
-				try {
-					if (ghost === null) {
-						ghost = document.createElement("div");
-						ghost.id = "mfx-chip-ghost";
-						overlayMount(ghost);
-					}
-					ghost.style.top = chipTop + "px";
-					ghost.style.left = chipSide === "left" ? "10px" : "";
-					ghost.style.right = chipSide === "right" ? "10px" : "";
-					/* the whale svg — brand-mark first: in the expanded drawer the
-				   toggle carries the panel glyph (railMark is collapsed-only)
-				   and ghost-in runs before the host commits the collapse, so
-				   the toggle itself is the wrong source in both directions.
-				   The expanded header keeps its own brandMark whale. */
-					var svg = document.querySelector('[class*="hHd-Xa_railMark"] svg')
-					|| document.querySelector('[data-slot="sidebar.brand.mark"] svg')
-					|| document.querySelector('[class*="hHd-Xa_brandMark"] svg')
-					|| document.querySelector('[class*="hHd-Xa_toggle"] svg');
-					ghost.innerHTML = "";
-					if (svg) ghost.appendChild(svg.cloneNode(true));
-					ghost.classList.remove("mfx-ghost-out", "mfx-ghost-in");
-					void ghost.offsetWidth; // restart the keyframe on re-use
-					ghost.classList.add(mode === "out" ? "mfx-ghost-out" : "mfx-ghost-in");
-				} catch (e) {}
-			}
 			function setDrawer(open) {
 				drawerOpen = open;
 				var html = document.documentElement;
 				clearTimeout(animTimer);
 				if (open) {
 					pendingOpen = false;
+					openChaseArmed = false;
 					html.classList.remove("mfx-drawer-closing", "mfx-drawer-anim-in");
 					html.classList.add("mfx-drawer-open");
 					if (!reduceMotion && !desktopMQ.matches) {
 						html.classList.add("mfx-drawer-anim-in");
-						mfxGhostChip("out");
 						animTimer = setTimeout(function () {
 							html.classList.remove("mfx-drawer-anim-in");
 						}, ANIM_MS + 80);
 					}
 				} else if (!reduceMotion && !desktopMQ.matches && html.classList.contains("mfx-drawer-open")) {
 					// keep the drawer geometry for the slide-out, then land on
-					// the chip when the timer clears the closing class; the
-					// ghost's fade-in must land at the same beat — mfxGhostFadeIn
-					// fills forwards at .95, and a ghost left holding would
-					// stack a duplicate chip on the real one
+					// the hidden settled state when the timer clears the
+					// closing class — the button's fade-in is CSS-driven off
+					// the same classes, so it lands on the same beat
 					html.classList.remove("mfx-drawer-open", "mfx-drawer-anim-in");
 					html.classList.add("mfx-drawer-closing");
-					mfxGhostChip("in");
 					animTimer = setTimeout(function () {
 						html.classList.remove("mfx-drawer-closing");
-						try { if (ghost) ghost.classList.remove("mfx-ghost-in"); } catch (e) {}
 					}, ANIM_MS + 60);
 				} else {
 					html.classList.remove("mfx-drawer-open", "mfx-drawer-closing", "mfx-drawer-anim-in");
 				}
 			}
-			// No rescue look any more. An earlier version painted the collapsed
-			// rail's own look inside the chip while the host caught up; the rules
-			// it needed (pin the whale, drop the rail's chrome) turned the whole
-			// takeover into one giant stretched whale whenever the host was slow
-			// to answer, and it could sit there for as long as the host took —
-			// the frozen panel in the phone screenshot. A chip showing a 56px
-			// crop for a few hundred ms is a far smaller price.
+			// No rescue look any more — and no chip to rescue: the closed state
+			// is the plugin's own button plus an invisible off-screen panel,
+			// neither of which depends on the host's collapsed-rail internals.
+			// An earlier version painted the collapsed rail's own look inside
+			// the shrunken column while the host caught up; the rules it needed
+			// turned the whole takeover into one giant stretched whale whenever
+			// the host was slow to answer.
+			function requestDrawerOpen() {
+				if (desktopMQ.matches) return;
+				pendingOpen = true;
+				openChaseArmed = true;
+				observeDrawer();
+			}
 			function observeDrawer() {
-				var rail = railRoot();
-				if (rail) railLastSeen = Date.now();
 				var collapsed = railCollapsed();
 				if (!initialized) {
 					if (collapsed === null) {
@@ -1028,23 +1014,35 @@ function mfxTr(hans, hant, en) {
 					return;
 				}
 				if (!drawerOpen && collapsed === true && hostAskedOnce) hostAskedOnce = false;
-				if (!drawerOpen && pendingOpen && collapsed === false) {
-					// the whale was tapped and the host has now laid its rail out:
-					// this is that open landing, whenever it arrives. No time
-					// window — a busy phone can take seconds, and a window that
-					// expired first left the drawer shut with no way to tell.
-					setDrawer(true);
-					return;
+				if (!drawerOpen && pendingOpen) {
+					if (collapsed === false) {
+						// the host has now laid its rail out: this is that open
+						// landing, whenever it arrives. No time window — a busy
+						// phone can take seconds, and a window that expired
+						// first left the drawer shut with no way to tell.
+						setDrawer(true);
+						return;
+					}
+					if (collapsed === true && openChaseArmed) {
+						// the floating button asked for the drawer and the
+						// host's rail is still collapsed: chase its own toggle
+						// once per gesture (the toggle sits inside the off-screen
+						// panel, so this synthetic click is the only way to
+						// reach it). If the host ignores it, the takeover stays
+						// shut and the user can tap the button again.
+						openChaseArmed = false;
+						var t = document.querySelector('[class*="hHd-Xa_toggle"]');
+						if (t) t.click();
+					}
 				}
-				// The host sitting open under a closed takeover is harmless (the
-				// chip clips it) and must NOT reopen the takeover.
 			}
-			// Closing is ours: the geometry moves in the tap's own task, the chip
-			// gets the collapsed rail's look while the host catches up, and the
-			// host's own toggle is clicked at most once per close gesture — never
-			// on a timer, never twice, so it can never toggle the host back.
+			// Closing is ours: the geometry moves in the tap's own task, the
+			// button fades back in through the shared classes, and the host's
+			// own toggle is clicked at most once per close gesture — never on
+			// a timer, never twice, so it can never toggle the host back.
 			function collapseDrawer(hostAlreadyToggling) {
 				pendingOpen = false;
+				openChaseArmed = false;
 				setDrawer(false);
 				if (railCollapsed() === false && !hostAskedOnce) {
 					hostAskedOnce = true;
@@ -1058,11 +1056,11 @@ function mfxTr(hans, hant, en) {
 			}
 			var syncDrawer = function () {
 				try {
-					applyChipPos();
+					applyFabPos();
+					updateFabIcon();
 					if (desktopMQ.matches) {
 						// desktop: the sidebar is a regular grid column, never a drawer
 						if (drawerOpen !== false) setDrawer(false);
-						try { if (ghost) ghost.classList.remove("mfx-ghost-in", "mfx-ghost-out"); } catch (e) {}
 						return;
 					}
 					observeDrawer();
@@ -1088,8 +1086,8 @@ function mfxTr(hans, hant, en) {
 			document.addEventListener("click", function (ev) {
 				setTimeout(syncDrawer, 0);
 				try {
-					// Only a real tap drives the takeover's own state. The chase
-					// below clicks the host's toggle itself, and a synthetic click
+					// Only a real tap drives the takeover's own state. The chases
+					// below click the host's toggle itself, and a synthetic click
 					// must not read as a second tap: it would re-enter this
 					// handler, restart the chase while the first one is still
 					// running, and the two would toggle the rail back and forth
@@ -1097,22 +1095,26 @@ function mfxTr(hans, hant, en) {
 					// expanded with the chase clicking every few hundred ms).
 					if (!ev.isTrusted) return;
 					var target = ev.target;
+					var onFab = !!(target && (target.id === "mfx-fab"
+						|| (target.closest && target.closest("#mfx-fab"))));
+					if (onFab && !desktopMQ.matches) {
+						// the floating button opens the drawer: ask the host's
+						// rail to expand (the chase in observeDrawer) and land
+						// the takeover as soon as the expanded content exists
+						requestDrawerOpen();
+						return;
+					}
 					var onToggle = target && target.closest && target.closest('[class*="hHd-Xa_toggle"]');
-					// The whale both opens and closes. The open is the host's
-					// own: this click already toggled its rail, so the takeover
-					// takes the geometry as soon as the host has the content for
-					// it (see observeDrawer, which the rail's own class watch
-					// drives). The close is ours, on the spot.
+					// the toggle inside the drawer's header closes on the spot
+					// (it is the host's own button, reachable only while the
+					// panel stands — closed, the whole panel is off-screen)
 					if (onToggle && !desktopMQ.matches) {
 						if (drawerOpen) {
 							collapseDrawer(true);
 						} else {
-							// The host flips its rail on this same click; the
-							// geometry waits for that commit so the panel never
-							// opens over a rail that is still the chip. Its class
-							// watch calls back within a frame — or seconds later,
-							// if the phone is busy with streaming sessions, and
-							// that is fine: the open lands whenever it lands.
+							// unreachable through a real tap while closed, but
+							// kept for safety: mirror the open request rather
+							// than fight whatever the host is doing
 							pendingOpen = true;
 						}
 						return;
