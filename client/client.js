@@ -17,7 +17,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	// The build this bundle is. Kept in step with package.json by
 	// scripts/check-manifest.mjs, and surfaced in the settings row plus the
 	// self-update banner below so a device can always say what it runs.
-	var BUILD = "0.8.6";
+	var BUILD = "0.8.7";
 
 	// Most of what this plugin renders lives inside native host slots; the
 	// documented exceptions are the narrow-screen drawer chip, the network
@@ -39,9 +39,12 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //      into a stacking context cannot paint it over the drawer's contents.
 //   4. narrow settings: the dialog's side nav becomes horizontal top tabs.
 //   5. narrow model menu: the composer's model menu lands full-width.
-//   6. network chip: a slot chip next to the composer controls surfaces /api/
-//      requests that hang or fail; tapping it probes the service's ping
-//      route to tell a slow route from a deadlocked host.
+//   6. network watch: a wrapper around window.fetch tracks /api/ requests
+//      that hang or fail; the warnings light the bottom-left connection
+//      chip and list inside the connection card (with a ping probe to
+//      tell a slow route from a deadlocked host). Nothing renders beside
+//      the composer any more — the old chip sat in the middle of the
+//      input row exactly where the eye writes.
 //   7. narrow question card: the pending-question takeover's question is
 //      capped into its own scroll region, so a long question can no longer
 //      push the choices — and, on small viewports, the submit row and the
@@ -98,12 +101,15 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //      unclickable div on a 2s timer, and the narrow rail/drawer sidebar
 //      never renders the control at all. A plain-DOM chip anchors the
 //      status at the bottom-left corner (surviving a frozen host React
-//      tree, the same reason the network chip is plain DOM) and pops a
+//      tree, the same reason the network watch is plain DOM) and pops a
 //      semi-persistent card: the card stays while the pointer is inside
 //      it, auto-dismisses otherwise, and carries the two actions that do
 //      work — an immediate reconnect through the connection service, and
 //      a full manual page refresh, the one recovery a wedged page always
-//      honors.
+//      honors. The stuck/failed request watch (6) reports through this
+//      same chip and card — a badge on the chip, a request list plus a
+//      liveness probe inside the card — so network warnings surface
+//      bottom-left and nowhere near the composer.
 //
 // Optional features are toggled with localStorage keys (value "0" = off):
 //   mfx-restart  (default on) — the ⟳ restart button
@@ -112,7 +118,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //   mfx-settings (default on) — the settings top-tabs layout
 //   mfx-modality (default on) — the provider-edit input-modality switches
 //   mfx-menus    (default on) — the model menu spanning the phone width
-//   mfx-net      (default on) — the stuck-request network chip
+//   mfx-net      (default on) — stuck/failed request tracking, surfaced in the connection card
 //   mfx-questions (default on) — the capped, scrollable question region
 //   mfx-selfupdate (default on) — reload the page when the plugin is upgraded
 //   mfx-agents   (default on) — the catalog-refresh guard + click-to-open chips
@@ -294,7 +300,7 @@ function flag(name, dflt) {
 			}
 		}, 800);
 
-		// ---------- shared toast (used by the network chip below) ----------
+		// ---------- shared toast (used by the network watch's probe below) ----------
 		var toastEl = null;
 		function toast(text) {
 			if (!toastEl) {
@@ -1304,15 +1310,24 @@ function flag(name, dflt) {
 			placeMenus();
 		}
 
-		// ---------- 7. network chip: surface stuck /api/ requests ----------
+		// Shared stuck/failed request state: section 7 fills it, the
+		// connection card (7b) renders it. It lives in apply's scope so the
+		// card can read it across the two independent feature gates — with
+		// the watch off, the card simply never shows a network section.
+		var netWatch = null;
+
+		// ---------- 7. network watch: track stuck / failed /api/ requests ----------
 		// The host talks to /api/... through window.fetch and some routes
-		// (e.g. /api/session/list) can hang without any UI feedback, leaving
-		// "is the service dead or is this route slow" unanswerable. A thin
-		// wrapper around window.fetch tracks in-flight /api/ requests; a
-		// compact chip next to the composer controls appears only when a request
-		// crosses the stuck threshold or fails outright. Tapping it runs a
-		// liveness probe against the plugin's ping route to separate "the
-		// service is alive, this route is slow" from "the host is not
+		// (e.g. /api/session/list) hang or fail without UI feedback worth
+		// reading. A thin wrapper around window.fetch tracks in-flight /api/
+		// requests and remembers the ones that cross the stuck threshold or
+		// fail outright. This feature no longer owns pixels next to the
+		// composer: its old chip sat in the middle of the input row, lit up
+		// precisely while the page was struggling, and a hover tooltip was
+		// the only way to read what failed. The warnings now surface in the
+		// bottom-left connection chip and card (7b), which already owns the
+		// recovery actions; the probe below keeps its old job of separating
+		// "the service is alive, this route is slow" from "the host is not
 		// answering at all".
 		if (flag("net", true)) {
 			var NET_STUCK_MS = 10000;
@@ -1324,9 +1339,6 @@ function flag(name, dflt) {
 			var netInflight = [];
 			var netRecent = [];
 
-			function netTick() {
-				if (typeof netChipTick === "function") netChipTick();
-			}
 			function netTrack(url) {
 				var path = String(url).split("?")[0];
 				var cut = path.indexOf("/api/");
@@ -1344,8 +1356,8 @@ function flag(name, dflt) {
 					netRecent.push({ path: entry.path, ms: ms, ok: ok, at: Date.now() });
 					netRecent = netRecent.filter(function (r) { return Date.now() - r.at < NET_KEEP_MS; });
 					// a storm can fail dozens of requests inside the keep
-					// window — cap the list so the per-second chip tooltip
-					// build stays bounded
+					// window — cap the list so the per-second snapshot and
+					// row build stay bounded
 					if (netRecent.length > 50) netRecent = netRecent.slice(-50);
 				}
 			}
@@ -1380,60 +1392,53 @@ function flag(name, dflt) {
 						netToast("✗ " + netT("服务无响应（5s 超时）——宿主可能卡死，可在 设置 → 通用 里重启服务", "No answer within 5s — the host may be deadlocked; restart it from Settings → General"));
 					});
 			}
-			// The chip is plain DOM, not a slot component: when /api/ hangs the
-			// host stops re-rendering entirely, so a React seat would never
-			// refresh exactly when it matters. Our own ticker owns the element,
-			// re-anchoring it beside the composer controls after host re-renders.
-			var netChip = null;
-			function netChipTick() {
-				var now = Date.now();
-				var stuck = netInflight.filter(function (r) { return now - r.start >= NET_STUCK_MS; });
-				var failed = netRecent.filter(function (r) { return !r.ok; });
-				var visible = stuck.length > 0 || failed.length > 0;
-				if (!visible) {
-					if (netChip) netChip.style.display = "none";
-					return;
-				}
-				if (!netChip || !netChip.isConnected) {
-					var anchor = document.querySelector("button.uV2eYG_add");
-					if (!anchor || !anchor.parentElement) return;
-					if (!netChip) {
-						netChip = document.createElement("button");
-						netChip.type = "button";
-						netChip.id = "mfx-net-chip";
-						netChip.addEventListener("click", netProbe);
+			// No pixel of this feature lives in the composer any more — the
+			// connection card below reads the watch through this snapshot:
+			// stuck (in flight past the threshold), failed (settled !ok) and
+			// slow (settled ok but past the threshold — context rows only,
+			// they never light the chip). Pruning by time happens here, so a
+			// failure ages out even when nothing else settles afterwards.
+			netWatch = {
+				t: netT,
+				probe: netProbe,
+				snapshot: function () {
+					var now = Date.now();
+					var cut = now - NET_KEEP_MS;
+					if (netRecent.length > 0) {
+						netRecent = netRecent.filter(function (r) { return r.at >= cut; });
 					}
-					anchor.parentElement.insertBefore(netChip, anchor.nextSibling);
+					var stuck = [];
+					var i;
+					for (i = 0; i < netInflight.length; i++) {
+						var r = netInflight[i];
+						if (now - r.start >= NET_STUCK_MS) {
+							stuck.push({ path: r.path, s: Math.round((now - r.start) / 1000) });
+						}
+					}
+					var failed = [];
+					var slow = [];
+					for (i = 0; i < netRecent.length; i++) {
+						var e = netRecent[i];
+						(e.ok ? slow : failed).push({ path: e.path, s: Math.round(e.ms / 1000) });
+					}
+					return {
+						// t rides along because the conn card reads the snapshot
+						// alone: netWatch.t is not reachable from there.
+						t: netT,
+						stuck: stuck,
+						failed: failed,
+						slow: slow,
+						count: stuck.length + failed.length,
+						hot: stuck.length > 0
+					};
 				}
-				var hot = stuck.length > 0;
-				netChip.style.display = "flex";
-				netChip.style.alignItems = "center";
-				netChip.style.height = "28px";
-				netChip.style.margin = "0 4px";
-				netChip.style.padding = "0 8px";
-				netChip.style.borderRadius = "14px";
-				netChip.style.border = "1px solid " + (hot ? "rgba(214,128,32,.55)" : "rgba(196,64,64,.55)");
-				netChip.style.background = hot ? "rgba(214,128,32,.12)" : "rgba(196,64,64,.10)";
-				netChip.style.color = "inherit";
-				netChip.style.cursor = "pointer";
-				netChip.style.fontSize = "12px";
-				netChip.style.flex = "none";
-				netChip.textContent = hot ? "⏳ " + stuck.length : "⚠";
-				netChip.title = stuck.map(function (r) { return r.path + "  " + Math.round((now - r.start) / 1000) + "s"; })
-					.concat(failed.map(function (r) { return r.path + "  " + (r.ok ? Math.round(r.ms / 1000) + "s" : netT("失败", "failed")); }))
-					.join("\n");
-				netChip.setAttribute("aria-label", netT("网络状态", "Network status"));
-			}
-			// one steady 1s tick drives the chip whether or not anything is
-			// in flight — it must run while the host is frozen to hide and
-			// re-anchor the element as requests settle
-			setInterval(netTick, 1000);
+			};
 			window.__mfxNetDebug = function () {
 				return {
 					patched: !!window.__mfxFetchPatched,
 					inflight: netInflight.map(function (r) { return { p: r.path, ms: Date.now() - r.start }; }),
 					recent: netRecent.length,
-					chip: netChip ? (netChip.isConnected ? "attached" : "detached") : "absent"
+					surfaced: "conn-card"
 				};
 			};
 		}
@@ -1442,7 +1447,7 @@ function flag(name, dflt) {
 		// The host's own control is CSS-module-classed and React-rendered,
 		// both of which fail exactly when this matters: a wedged host stops
 		// re-rendering, and a rebundled host rehashes the classes. So this
-		// feature is plain DOM on a fixed anchor (the network chip's own
+		// feature is plain DOM on a fixed anchor (the network watch's own
 		// reasoning) driven directly by the connection service's state
 		// signal, which lives in the page and keeps firing through a host
 		// freeze. The chip is the persistent status; the card above it is
@@ -1452,6 +1457,14 @@ function flag(name, dflt) {
 		// same connection service the host's control uses) and a full
 		// manual refresh, which recovers even a page whose transport state
 		// is beyond repair.
+		//
+		// The card also absorbs the network watch (7): a badge on the chip
+		// counts stuck/failed /api/ requests, the card lists them (with the
+		// slow-recovered ones as dimmed context) and carries the liveness
+		// probe. The card stays closed when only the badge lights — the
+		// chip alone is the "something is off" signal, and popping a panel
+		// per failed poller would be exactly the composer interruption
+		// this merge removes.
 		if (flag("conn", true)) {
 			var connT = function (zh, en) {
 				try { return (navigator.language || "en").toLowerCase().indexOf("zh") === 0 ? zh : en; }
@@ -1480,10 +1493,21 @@ function flag(name, dflt) {
 				"#mfx-conn-chip[data-state=\"disconnected\"] { border-color: rgba(214,88,80,.6); }",
 				"#mfx-conn-chip[data-state=\"connecting\"] { border-color: rgba(214,138,48,.6); }",
 				"#mfx-conn-chip[data-state=\"recovered\"] { border-color: rgba(84,178,106,.6); }",
+				// net lighting wins over the state colours (same specificity,
+				// later rules): a warning must stay visible once the transport
+				// itself is back
+				"#mfx-conn-chip[data-net=\"hot\"] { border-color: rgba(214,138,48,.7); }",
+				"#mfx-conn-chip[data-net=\"err\"] { border-color: rgba(214,88,80,.7); }",
 				"#mfx-conn-chip .mfx-conn-dot { width: 8px; height: 8px; border-radius: 50%; background: #54b26a; flex: none; }",
 				"#mfx-conn-chip[data-state=\"disconnected\"] .mfx-conn-dot { background: #d65850; }",
 				"#mfx-conn-chip[data-state=\"connecting\"] .mfx-conn-dot { background: #d68a30;",
 				"  animation: mfx-conn-pulse 1.2s ease-in-out infinite; }",
+				"#mfx-conn-chip[data-net=\"hot\"] .mfx-conn-dot { background: #d68a30; }",
+				"#mfx-conn-chip[data-net=\"err\"] .mfx-conn-dot { background: #d65850; }",
+				"#mfx-conn-chip .mfx-conn-badge { flex: none; display: none; padding: 1px 6px; border-radius: 8px;",
+				"  font-size: 11px; font-weight: 600; line-height: 14px;",
+				"  background: rgba(214,88,80,.16); border: 1px solid rgba(214,88,80,.5); }",
+				"#mfx-conn-chip[data-net=\"hot\"] .mfx-conn-badge { background: rgba(214,138,48,.16); border-color: rgba(214,138,48,.5); }",
 				"@keyframes mfx-conn-pulse { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }",
 				"#mfx-conn-card { position: fixed; left: 12px; bottom: 48px; z-index: 93;",
 				"  width: min(320px, calc(100vw - 24px)); box-sizing: border-box; padding: 14px; border-radius: 14px;",
@@ -1505,6 +1529,19 @@ function flag(name, dflt) {
 				"#mfx-conn-card .mfx-conn-btn:hover { background: rgba(255,255,255,.08); }",
 				"#mfx-conn-card .mfx-conn-btn.mfx-conn-primary { background: #4f7cd6; border-color: #4f7cd6; color: #fff; }",
 				"#mfx-conn-card .mfx-conn-btn.mfx-conn-primary:hover { background: #5d89de; }",
+				"#mfx-conn-card .mfx-conn-net { display: none; margin: 12px 0; padding-top: 10px;",
+				"  border-top: 1px solid rgba(128,128,128,.25); }",
+				"#mfx-conn-card .mfx-conn-net[data-on=\"1\"] { display: block; }",
+				"#mfx-conn-card .mfx-conn-nethead { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }",
+				"#mfx-conn-card .mfx-conn-nettitle { flex: 1; min-width: 0; font-weight: 600; font-size: 12px; }",
+				"#mfx-conn-card .mfx-conn-netprobe { flex: none; height: 22px; padding: 0 10px; border-radius: 6px;",
+				"  border: 1px solid rgba(128,128,128,.4); background: transparent; color: #eee;",
+				"  font-family: inherit; font-size: 11px; cursor: pointer; }",
+				"#mfx-conn-card .mfx-conn-netprobe:hover { background: rgba(255,255,255,.08); }",
+				"#mfx-conn-card .mfx-conn-netlist { max-height: 132px; overflow-y: auto;",
+				"  overscroll-behavior: contain; font-size: 11px; line-height: 17px;",
+				"  color: rgba(238,238,238,.72); }",
+				"#mfx-conn-card .mfx-conn-netrow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }",
 				"@media (max-width: 1023px) {",
 				"  #mfx-conn-chip { left: 10px; bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); }",
 				"  #mfx-conn-card { left: 10px; bottom: calc(env(safe-area-inset-bottom, 0px) + 118px); }",
@@ -1515,7 +1552,7 @@ function flag(name, dflt) {
 			var connChip = document.createElement("button");
 			connChip.type = "button";
 			connChip.id = "mfx-conn-chip";
-			connChip.setAttribute("aria-label", connT("连接状态", "Connection status"));
+			connChip.setAttribute("aria-label", connT("连接与网络状态", "Connection and network status"));
 			connChip.setAttribute("aria-haspopup", "dialog");
 			connChip.setAttribute("aria-expanded", "false");
 			var connChipDot = document.createElement("span");
@@ -1523,6 +1560,9 @@ function flag(name, dflt) {
 			var connChipLabel = document.createElement("span");
 			connChip.appendChild(connChipDot);
 			connChip.appendChild(connChipLabel);
+			var connChipBadge = document.createElement("span");
+			connChipBadge.className = "mfx-conn-badge";
+			connChip.appendChild(connChipBadge);
 
 			var connCard = document.createElement("div");
 			connCard.id = "mfx-conn-card";
@@ -1540,6 +1580,30 @@ function flag(name, dflt) {
 			connHead.appendChild(connX);
 			var connBody = document.createElement("div");
 			connBody.className = "mfx-conn-body";
+			// The network section: the stuck/failed request list the old
+			// composer chip used to carry as a hover tooltip, plus the
+			// liveness probe. Hidden entirely while the watch reports
+			// nothing (or while the watch feature is off).
+			var connNet = document.createElement("div");
+			connNet.className = "mfx-conn-net";
+			connNet.setAttribute("data-on", "0");
+			var connNetHead = document.createElement("div");
+			connNetHead.className = "mfx-conn-nethead";
+			var connNetTitle = document.createElement("span");
+			connNetTitle.className = "mfx-conn-nettitle";
+			var connNetProbe = document.createElement("button");
+			connNetProbe.type = "button";
+			connNetProbe.className = "mfx-conn-netprobe";
+			var connNetList = document.createElement("div");
+			connNetList.className = "mfx-conn-netlist";
+			connNetHead.appendChild(connNetTitle);
+			connNetHead.appendChild(connNetProbe);
+			connNet.appendChild(connNetHead);
+			connNet.appendChild(connNetList);
+			connNetProbe.addEventListener("click", function (e) {
+				e.stopPropagation();
+				try { if (netWatch && netWatch.probe) netWatch.probe(); } catch (err) {}
+			});
 			var connActions = document.createElement("div");
 			connActions.className = "mfx-conn-actions";
 			var connReconnectBtn = document.createElement("button");
@@ -1552,6 +1616,7 @@ function flag(name, dflt) {
 			connActions.appendChild(connRefreshBtn);
 			connCard.appendChild(connHead);
 			connCard.appendChild(connBody);
+			connCard.appendChild(connNet);
 			connCard.appendChild(connActions);
 			overlayMount(connChip);
 			overlayMount(connCard);
@@ -1564,6 +1629,7 @@ function flag(name, dflt) {
 			var connPointerIn = false;
 			var connPointerLeftAt = 0;
 			var connHoverOpenedAt = 0;
+			var connNetSig = "";
 
 			function connEffState() {
 				if (connState === "connected") return Date.now() < connRecoveredUntil ? "recovered" : "connected";
@@ -1571,13 +1637,42 @@ function flag(name, dflt) {
 			}
 			function connRender() {
 				var eff = connEffState();
+				// The watch is read live on every render (the 500ms tick):
+				// stuck and failed requests light the chip without any wiring
+				// from the fetch wrapper, and age out as they expire.
+				var net = null;
+				try { net = netWatch ? netWatch.snapshot() : null; } catch (e) { net = null; }
+				var netCount = net ? net.count : 0;
 				connChip.setAttribute("data-state", eff);
-				connChip.setAttribute("data-on", eff === "connected" ? "0" : "1");
+				connChip.setAttribute("data-on", (eff !== "connected" || netCount > 0) ? "1" : "0");
+				connChip.setAttribute("data-net",
+					net && net.hot ? "hot" : (netCount > 0 ? "err" : "0"));
 				connChip.setAttribute("aria-expanded", connCardOpen ? "true" : "false");
-				connChipLabel.textContent = eff === "disconnected"
-					? connT("连接已断开", "Disconnected")
-					: eff === "connecting" ? connT("自动重连中", "Reconnecting")
-					: connT("已重连", "Reconnected");
+				if (eff === "connected" && netCount > 0) {
+					// Transport healthy, requests not: the label names the
+					// count, the badge keeps the number next to whatever the
+					// label shows.
+					connChipLabel.textContent = net.hot
+						? net.t(netCount + " 个请求卡住", netCount + " request" + (netCount === 1 ? "" : "s") + " stuck")
+						: net.t(netCount + " 个请求失败", netCount + " request" + (netCount === 1 ? "" : "s") + " failed");
+				} else {
+					connChipLabel.textContent = eff === "disconnected"
+						? connT("连接已断开", "Disconnected")
+						: eff === "connecting" ? connT("自动重连中", "Reconnecting")
+						: connT("已重连", "Reconnected");
+				}
+				if (netCount > 0) {
+					// "inline", not "": the class rule hides the badge with
+					// display:none, so resetting the inline value would fall
+					// straight back to hidden — the badge must override it.
+					connChipBadge.style.display = "inline";
+					connChipBadge.textContent = "⚠ " + netCount;
+					connChipBadge.title = net.t(netCount + " 个请求卡住或失败", netCount + " stuck or failed request" + (netCount === 1 ? "" : "s"));
+				} else {
+					connChipBadge.style.display = "none";
+					connChipBadge.textContent = "";
+					connChipBadge.title = "";
+				}
 				connTitle.textContent = eff === "disconnected"
 					? connT("连接已断开", "Disconnected")
 					: eff === "connecting" ? connT("正在自动重连", "Reconnecting") + "…"
@@ -1592,6 +1687,48 @@ function flag(name, dflt) {
 				connReconnectBtn.style.display = eff === "recovered" ? "none" : "";
 				connReconnectBtn.textContent = "⟳ " + connT("立即重连", "Reconnect now");
 				connRefreshBtn.textContent = "↻ " + connT("手动刷新", "Manual refresh");
+				// The line set and its signature are built on every render
+				// tick (bounded: at most the in-flight requests plus 50
+				// recent entries), but the row DOM is rebuilt only when the
+				// signature actually changed: a streaming page settles many
+				// requests per second, and rebuilding identical rows would
+				// churn layout for nothing. Rows are built with textContent —
+				// the paths come from live fetch URLs.
+				var lines = [];
+				if (net) {
+					var si;
+					for (si = 0; si < net.stuck.length; si++) {
+						lines.push({ m: "⏳", p: net.stuck[si].path, s: net.stuck[si].s + "s" });
+					}
+					var fi;
+					for (fi = 0; fi < net.failed.length; fi++) {
+						lines.push({ m: "✗", p: net.failed[fi].path, s: net.t("失败", "failed") });
+					}
+					var li;
+					for (li = 0; li < net.slow.length; li++) {
+						lines.push({ m: "◔", p: net.slow[li].path, s: net.slow[li].s + "s" });
+					}
+				}
+				if (lines.length === 0) {
+					connNet.setAttribute("data-on", "0");
+					connNetSig = "";
+				} else {
+					connNet.setAttribute("data-on", "1");
+					var sig = lines.map(function (l) { return l.m + "|" + l.p + "|" + l.s; }).join("\n");
+					if (sig !== connNetSig) {
+						connNetSig = sig;
+						connNetTitle.textContent = net.t("网络请求", "Network requests");
+						connNetProbe.textContent = net.t("探测服务", "Probe");
+						while (connNetList.firstChild) connNetList.removeChild(connNetList.firstChild);
+						for (var ri = 0; ri < lines.length; ri++) {
+							var row = document.createElement("div");
+							row.className = "mfx-conn-netrow";
+							row.textContent = lines[ri].m + " " + lines[ri].p + " · " + lines[ri].s;
+							row.title = lines[ri].p;
+							connNetList.appendChild(row);
+						}
+					}
+				}
 				connCard.setAttribute("data-open", connCardOpen ? "1" : "0");
 			}
 			function connOpenCard() {
@@ -1723,12 +1860,15 @@ function flag(name, dflt) {
 			})();
 			connRender();
 			window.__mfxConnDebug = function () {
+				var netCount = null;
+				try { netCount = netWatch ? netWatch.snapshot().count : null; } catch (e) {}
 				return {
 					service: !!connSvc,
 					state: connState,
 					eff: connEffState(),
 					card: connCardOpen ? "open" : "closed",
 					pointer: connPointerIn ? "in" : "out",
+					net: netCount,
 					chip: connChip.isConnected ? "attached" : "detached"
 				};
 			};
@@ -1838,7 +1978,7 @@ function flag(name, dflt) {
 		// open — after every membership event (50ms debounce). A workflow
 		// fanning out subagents turns that into a request storm that starves
 		// the very host that has to answer it, which is exactly when the
-		// chips feel dead and the network chip lights up.
+		// chips feel dead and the connection card lights up.
 		//
 		// The guard wraps the session controller's refreshProjections (the
 		// single choke point every caller — select, catalog-open, stale
