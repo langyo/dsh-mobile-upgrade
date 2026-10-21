@@ -8,7 +8,7 @@ Mobile quality-of-life fixes for the [DeepSeek Harness](https://github.com/deeps
 
 - **Restart row** — a "Restart service" entry in Settings → General. Confirms first, restarts the `dsh` process, and reloads the page automatically once the service answers again.
 - **Input-modality switches** — text/image checkboxes on every model row of the native provider editor, writing the model's `input` array into the active profile's settings document (with a 0600 backup next to it). Catalog models without a user-customised route show the switches read-only with the default `text` value (dsh 0.2's `llm.listProviders` carries no model list, so the effective catalog cannot refine them).
-- **Narrow-screen drawer** — below 1024px the sidebar collapses to a small corner chip that keeps the host's own toggle; expanding it floats the full sidebar as a drawer over full-width content, and picking a session closes it again. The chip and the drawer swap atomically (no geometry animation to freeze on a busy main thread), and a tap that closes the drawer collapses it in that same frame instead of waiting for the host's re-render — so a phone running many sessions cannot strand the drawer half-expanded, and the closed chip never sits white over a rail the host has already emptied. The open drawer paints an opaque surface composed from the theme's own sidebar tokens, so a glass skin cannot turn it transparent. Opening slides the drawer in from the chip's side (transform/opacity only — width never animates) while a ghost copy fades the chip out, and the chip keeps the host's own whale at a pinned size no matter what a skin does to it.
+- **Narrow-screen drawer** — below 1024px the collapsed sidebar parks fully off-screen, replaced by the plugin's own floating button: a plain-DOM 56px round translucent element that is not the sidebar (the old chip was the sidebar itself, resized — broken by host rebuilds and skin restyles), with its own icon — the host's whale cloned and stripped of styling hooks — at a size pinned against any skin. Tapping it chases the host rail to expand and slides the full-height sidebar in from the button's side as soon as the expanded rail mounts; the button fades out while the drawer stands, and a close tap (scrim, session row, header toggle) slides it back out in the same frame. The panel's width never changes, the transform-only slide cannot freeze halfway; the open drawer still paints an opaque surface from the theme's own sidebar tokens that a glass skin cannot turn transparent. The button stays draggable to either edge; the drawer opens from the side it is attached to.
 - **Narrow settings tabs** — below 700px the settings dialog's side navigation becomes a row of horizontally scrollable tabs.
 - **Full-width model menu** — below 700px the composer's model menu re-anchors to exactly the phone width (12px margins) instead of landing past the screen edge, while the host keeps owning the vertical placement above the trigger.
 - **Scrollable question card** — below 1024px a pending question can no longer bury its own choices: the question is capped into its own scroll region, so a long question scrolls in place while the option list below keeps whatever room is left and the options, the submit row and the minimize/close buttons stay on screen and reachable. A short question is untouched, and the card still hugs its content.
@@ -24,11 +24,11 @@ Mobile quality-of-life fixes for the [DeepSeek Harness](https://github.com/deeps
 
 ## Screenshots
 
-The floating chip, the session drawer, the narrow-screen settings tabs and the narrow-header collector (annotated):
+The floating button, the session drawer, the narrow-screen settings tabs and the narrow-header collector (annotated):
 
 | | |
 |---|---|
-| ![Floating chip](res/shot-floating-chip.png) | ![Session drawer](res/shot-drawer.png) |
+| ![Floating button](res/shot-floating-chip.png) | ![Session drawer](res/shot-drawer.png) |
 | ![Settings tabs](res/shot-settings-tabs.png) | ![Header collector](res/shot-header-collector.png) |
 
 ## Install
