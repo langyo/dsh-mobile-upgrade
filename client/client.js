@@ -17,7 +17,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	// The build this bundle is. Kept in step with package.json by
 	// scripts/check-manifest.mjs, and surfaced in the settings row plus the
 	// self-update banner below so a device can always say what it runs.
-	var BUILD = "0.8.9";
+	var BUILD = "0.8.10";
 
 	// Most of what this plugin renders lives inside native host slots; the
 	// documented exceptions are the narrow-screen drawer's floating button
@@ -726,9 +726,14 @@ function mfxTr(hans, hant, en) {
 
 			var fstyle = document.createElement("style");
 			fstyle.id = "mfx-fab-style";
+			// border-radius carries !important: skins ship global button
+			// resets (orca-link rounds every button) that would otherwise
+			// flatten the circle into a rounded square — the one live
+			// verification caught that the fake-DOM harness cannot see
+			// (it asserts CSS strings, not computed styles).
 			fstyle.textContent = [
 				"#mfx-fab { position: fixed; top: 10px; left: 10px; z-index: 132;",
-				"  width: 56px; height: 56px; border-radius: 50%; border: 0; padding: 0; margin: 0;",
+				  "  width: 56px; height: 56px; border-radius: 50% !important; border: 0; padding: 0; margin: 0;",
 				"  display: grid; place-items: center; cursor: pointer; touch-action: none;",
 				"  background: rgba(128,132,140,.28); box-shadow: 0 2px 14px rgba(0,0,0,.18);",
 				"  -webkit-tap-highlight-color: transparent; transition: opacity 240ms ease; }",
