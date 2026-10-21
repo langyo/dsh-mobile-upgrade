@@ -17,7 +17,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	// The build this bundle is. Kept in step with package.json by
 	// scripts/check-manifest.mjs, and surfaced in the settings row plus the
 	// self-update banner below so a device can always say what it runs.
-	var BUILD = "0.8.10";
+	var BUILD = "0.8.11";
 
 	// Most of what this plugin renders lives inside native host slots; the
 	// documented exceptions are the narrow-screen drawer's floating button
@@ -732,10 +732,14 @@ function mfxTr(hans, hant, en) {
 			// verification caught that the fake-DOM harness cannot see
 			// (it asserts CSS strings, not computed styles).
 			fstyle.textContent = [
-				"#mfx-fab { position: fixed; top: 10px; left: 10px; z-index: 132;",
+				/* background at .6, not the old .28: the button floats over the host's
+			   own chrome, and a too-translucent disc lets the header's menu
+			   glyph and tab labels bleed through — the whale stopped reading
+			   as the button's icon ("怎么不是肥鱼" report) */
+			"#mfx-fab { position: fixed; z-index: 132;",
 				  "  width: 56px; height: 56px; border-radius: 50% !important; border: 0; padding: 0; margin: 0;",
 				"  display: grid; place-items: center; cursor: pointer; touch-action: none;",
-				"  background: rgba(128,132,140,.28); box-shadow: 0 2px 14px rgba(0,0,0,.18);",
+				"  background: rgba(128,132,140,.6); box-shadow: 0 2px 14px rgba(0,0,0,.18);",
 				"  -webkit-tap-highlight-color: transparent; transition: opacity 240ms ease; }",
 				"#mfx-fab svg { display: block !important; width: 24px !important; height: 17.66px !important;",
 				"  transform: none !important; }",
@@ -750,18 +754,30 @@ function mfxTr(hans, hant, en) {
 			].join("\n");
 			document.head.appendChild(fstyle);
 
-			// one whale hunt per page: until it succeeds, every sync retries
-			// the cheap query — the sidebar column is not mounted yet when the
+			// the whale hunt: brand sources (the collapsed rail's railMark,
+			// the expanded header's brand mark) latch on first success — that
+			// is the whale, full stop. The toggle's own glyph is a LAST-RESORT
+			// source that never latches: in the collapsed rail it happens to
+			// be the whale, but in the expanded drawer it is the panel glyph,
+			// and a button that latched that would show a menu glyph forever
+			// (the "怎么不是肥鱼" report). Until a brand source mounts, every
+			// sync retries the cheap query and the stopgap gets replaced the
+			// moment the real whale exists. — the sidebar column is not mounted yet when the
 			// plugin applies, and the first paint of the button must not
 			// depend on the host's mount order.
 			var fabIconDone = false;
+			var fabIconLastSource = null;
 			function updateFabIcon() {
 				if (fabIconDone) return;
 				try {
 					var svg = document.querySelector('[class*="hHd-Xa_railMark"] svg')
 						|| document.querySelector('[data-slot="sidebar.brand.mark"] svg')
-						|| document.querySelector('[class*="hHd-Xa_brandMark"] svg')
-						|| document.querySelector('[class*="hHd-Xa_toggle"] svg');
+						|| document.querySelector('[class*="hHd-Xa_brandMark"] svg');
+					var source = "brand";
+					if (!svg) {
+						svg = document.querySelector('[class*="hHd-Xa_toggle"] svg');
+						source = "toggle-glyph";
+					}
 					if (!svg) return;
 					var clone = svg.cloneNode(true);
 					var strip = [clone].concat([].slice.call(clone.querySelectorAll("*")));
@@ -782,7 +798,11 @@ function mfxTr(hans, hant, en) {
 					fab.innerHTML = "";
 					fab.appendChild(clone);
 					fab.classList.remove("mfx-fab-fallback");
-					fabIconDone = true;
+					fabIconDone = source === "brand";
+					if (source !== fabIconLastSource) {
+						fabIconLastSource = source;
+						try { console.info("[dsh-mobile-upgrade] fab icon: " + source); } catch (e2) {}
+					}
 				} catch (e) {}
 			}
 
@@ -801,11 +821,23 @@ function mfxTr(hans, hant, en) {
 			// AssistiveTouch-style button position: persisted attachment side
 			// and vertical offset; the drawer opens on the attached side
 			var chipSide = "left";
-			var chipTop = 10;
+			var chipTop = 72;
 			try {
 				if (window.localStorage.getItem("mfx-chip-side") === "right") chipSide = "right";
 				var savedTop = parseInt(window.localStorage.getItem("mfx-chip-top"), 10);
 				if (!isNaN(savedTop)) chipTop = savedTop;
+				// the legacy default (10px) parked the button ON the narrow
+				// header's own menu button; the translucent circle let that glyph
+				// and the Chat tab bleed through and the whale stopped reading as
+				// the button's icon. Move once, below the header.
+				if (savedTop === 10 && !window.localStorage.getItem("mfx-fab-migrated")) {
+					chipTop = 72;
+					// persist BOTH: a marker without the top would let the old
+					// "10" sit in storage and bounce the button back onto the
+					// header on every later boot (never-dragged users)
+					window.localStorage.setItem("mfx-chip-top", "72");
+					window.localStorage.setItem("mfx-fab-migrated", "1");
+				}
 			} catch (e) {}
 			function clampChipTop(t) {
 				return Math.max(10, Math.min(window.innerHeight - 66, t));
