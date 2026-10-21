@@ -17,7 +17,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	// The build this bundle is. Kept in step with package.json by
 	// scripts/check-manifest.mjs, and surfaced in the settings row plus the
 	// self-update banner below so a device can always say what it runs.
-	var BUILD = "0.8.7";
+	var BUILD = "0.8.8";
 
 	// Most of what this plugin renders lives inside native host slots; the
 	// documented exceptions are the narrow-screen drawer chip, the network
@@ -156,6 +156,28 @@ function flag(name, dflt) {
 		return namespaceFlags[key] !== false;
 	}
 	return dflt;
+}
+// UI locale for every user-facing string in this bundle: "hans", "hant"
+// or "en". The old per-section checks keyed on indexOf("zh") === 0,
+// which served the Simplified strings to Traditional Chinese users
+// (zh-Hant-TW, zh-TW, zh-HK, zh-MO). Subtag rule: a "hant" script tag or
+// a TW/HK/MO region means Traditional; any other zh-* is Simplified
+// (bare "zh" defaults to Simplified, the language's default script).
+// Deliberately uncached: navigator.language is read per call, which
+// keeps multi-boot test harnesses honest at a string-compare's cost.
+function mfxUiLocale() {
+	var lang = "";
+	try { lang = String(navigator.language || "").toLowerCase(); } catch (e) {}
+	if (lang.indexOf("zh") !== 0) return "en";
+	if (lang.indexOf("hant") !== -1 || /^zh-(?:hant-)?(?:tw|hk|mo)(?:-|$)/.test(lang)) return "hant";
+	return "hans";
+}
+// Every section keeps its short local helper name (T/netT/connT/mfxT)
+// but hands its arguments to this shared resolver, so the call sites
+// read Simplified, Traditional, English left to right.
+function mfxTr(hans, hant, en) {
+	var l = mfxUiLocale();
+	return l === "hant" ? hant : l === "hans" ? hans : en;
 }
 	async function apply(ctx, config) {
 		// One line a user (or their agent) can grep the console for to answer
@@ -323,15 +345,16 @@ function flag(name, dflt) {
 		if (flag("restart", true)) {
 			function restartLabel() {
 				try {
-					var base = (navigator.language || "en").toLowerCase().indexOf("zh") === 0 ? "重启服务" : "Restart service";
+					var base = mfxTr("重启服务", "重新啟動服務", "Restart service");
 					return base + " · v" + BUILD;
 				} catch (e) { return "Restart service"; }
 			}
 			function restartConfirm() {
 				try {
-					return (navigator.language || "en").toLowerCase().indexOf("zh") === 0
-						? "重启 dsh 服务？页面将在服务恢复后自动刷新。"
-						: "Restart the dsh service? The page reloads once it is back.";
+					return mfxTr(
+						"重启 dsh 服务？页面将在服务恢复后自动刷新。",
+						"重新啟動 dsh 服務？頁面將在服務恢復後自動重新整理。",
+						"Restart the dsh service? The page reloads once it is back.");
 				} catch (e) { return "Restart the dsh service?"; }
 			}
 			var RESTART_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path></svg>';
@@ -436,9 +459,8 @@ function flag(name, dflt) {
 				if (text !== undefined) el.textContent = text;
 				return el;
 			}
-			function T(zh, en) {
-				try { return (navigator.language || "en").toLowerCase().indexOf("zh") === 0 ? zh : en; }
-				catch (e) { return en; }
+			function T(zh, hant, en) {
+				return mfxTr(zh, hant, en);
 			}
 			var modalityCache = null;
 			var modalityRoute = null;
@@ -503,13 +525,13 @@ function flag(name, dflt) {
 						}
 						var bar = mfxEl("div", "display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:6px 0 2px;padding:0 2px;font-size:12px;color:var(--dsw-alias-label-secondary);");
 						bar.className = "mfx-modality";
-						bar.appendChild(mfxEl("span", "font-size:12px;opacity:.75;flex:none;", T("输入模态", "Input")));
+						bar.appendChild(mfxEl("span", "font-size:12px;opacity:.75;flex:none;", T("输入模态", "輸入模態", "Input")));
 						var current = effectiveModelInput(route, modelId)
 							?? currentModelInput(route, modelId)
 							?? ["text"];
 						["text", "image"].forEach(function (mod) {
 							var lb = mfxEl("label", "display:flex;align-items:center;gap:4px;cursor:pointer;flex:none;color:var(--dsw-alias-label-primary);");
-							lb.title = known ? "" : T("表单保存后生效", "Takes effect after the form is saved");
+							lb.title = known ? "" : T("表单保存后生效", "表單儲存後生效", "Takes effect after the form is saved");
 							var cb = mfxEl("input");
 							cb.style.cssText = "accent-color:var(--dsw-alias-brand-primary);width:14px;height:14px;margin:0;cursor:pointer;";
 							cb.type = "checkbox";
@@ -1156,7 +1178,8 @@ function flag(name, dflt) {
 					banner = document.createElement("button");
 					banner.type = "button";
 					banner.id = "mfx-update-banner";
-					banner.textContent = "插件已更新到 v" + BUILD + " · 点此刷新";
+					banner.textContent = mfxTr("插件已更新到 v", "外掛已更新到 v", "Plugin updated to v") + BUILD
+					+ mfxTr(" · 点此刷新", " · 點此重新整理", " · click to reload");
 					banner.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);bottom:96px;" +
 						"z-index:200;max-width:88vw;padding:10px 16px;border:none;border-radius:12px;" +
 						"font-size:13px;line-height:18px;color:#fff;background:#3355dd;" +
@@ -1332,9 +1355,8 @@ function flag(name, dflt) {
 		if (flag("net", true)) {
 			var NET_STUCK_MS = 10000;
 			var NET_KEEP_MS = 20000;
-			var netT = function (zh, en) {
-				try { return (navigator.language || "en").toLowerCase().indexOf("zh") === 0 ? zh : en; }
-				catch (e) { return en; }
+			var netT = function (zh, hant, en) {
+				return mfxTr(zh, hant, en);
 			};
 			var netInflight = [];
 			var netRecent = [];
@@ -1381,15 +1403,15 @@ function flag(name, dflt) {
 				var t0 = Date.now();
 				var ctl = new AbortController();
 				var timer = setTimeout(function () { ctl.abort(); }, 5000);
-				netToast("⏳ " + netT("正在探测服务…", "Probing the service…"));
+				netToast("⏳ " + netT("正在探测服务…", "正在探測服務…", "Probing the service…"));
 				fetch(ROUTE_PREFIX + "/ping", { cache: "no-store", signal: ctl.signal })
 					.then(function () {
 						clearTimeout(timer);
-						netToast("✓ " + netT("服务存活（ping " + (Date.now() - t0) + "ms）——卡住的是 API 路由本身", "Service alive (ping " + (Date.now() - t0) + "ms) — the API route itself is stuck"));
+						netToast("✓ " + netT("服务存活（ping " + (Date.now() - t0) + "ms）——卡住的是 API 路由本身", "服務存活（ping " + (Date.now() - t0) + "ms）——卡住的是 API 路由本身", "Service alive (ping " + (Date.now() - t0) + "ms) — the API route itself is stuck"));
 					})
 					.catch(function () {
 						clearTimeout(timer);
-						netToast("✗ " + netT("服务无响应（5s 超时）——宿主可能卡死，可在 设置 → 通用 里重启服务", "No answer within 5s — the host may be deadlocked; restart it from Settings → General"));
+						netToast("✗ " + netT("服务无响应（5s 超时）——宿主可能卡死，可在 设置 → 通用 里重启服务", "服務無回應（5s 逾時）——宿主可能卡死，可在 設定 → 一般 裡重新啟動服務", "No answer within 5s — the host may be deadlocked; restart it from Settings → General"));
 					});
 			}
 			// No pixel of this feature lives in the composer any more — the
@@ -1466,9 +1488,8 @@ function flag(name, dflt) {
 		// per failed poller would be exactly the composer interruption
 		// this merge removes.
 		if (flag("conn", true)) {
-			var connT = function (zh, en) {
-				try { return (navigator.language || "en").toLowerCase().indexOf("zh") === 0 ? zh : en; }
-				catch (e) { return en; }
+			var connT = function (zh, hant, en) {
+				return mfxTr(zh, hant, en);
 			};
 			var CONN_RECOVERED_MS = 4000;
 			var CONN_CARD_AUTO_MS = 12000;
@@ -1552,7 +1573,7 @@ function flag(name, dflt) {
 			var connChip = document.createElement("button");
 			connChip.type = "button";
 			connChip.id = "mfx-conn-chip";
-			connChip.setAttribute("aria-label", connT("连接与网络状态", "Connection and network status"));
+			connChip.setAttribute("aria-label", connT("连接与网络状态", "連線與網路狀態", "Connection and network status"));
 			connChip.setAttribute("aria-haspopup", "dialog");
 			connChip.setAttribute("aria-expanded", "false");
 			var connChipDot = document.createElement("span");
@@ -1574,7 +1595,7 @@ function flag(name, dflt) {
 			var connX = document.createElement("button");
 			connX.type = "button";
 			connX.className = "mfx-conn-x";
-			connX.setAttribute("aria-label", connT("关闭", "Close"));
+			connX.setAttribute("aria-label", connT("关闭", "關閉", "Close"));
 			connX.textContent = "✕";
 			connHead.appendChild(connTitle);
 			connHead.appendChild(connX);
@@ -1653,13 +1674,13 @@ function flag(name, dflt) {
 					// count, the badge keeps the number next to whatever the
 					// label shows.
 					connChipLabel.textContent = net.hot
-						? net.t(netCount + " 个请求卡住", netCount + " request" + (netCount === 1 ? "" : "s") + " stuck")
-						: net.t(netCount + " 个请求失败", netCount + " request" + (netCount === 1 ? "" : "s") + " failed");
+						? net.t(netCount + " 个请求卡住", netCount + " 個請求卡住", netCount + " request" + (netCount === 1 ? "" : "s") + " stuck")
+						: net.t(netCount + " 个请求失败", netCount + " 個請求失敗", netCount + " request" + (netCount === 1 ? "" : "s") + " failed");
 				} else {
 					connChipLabel.textContent = eff === "disconnected"
-						? connT("连接已断开", "Disconnected")
-						: eff === "connecting" ? connT("自动重连中", "Reconnecting")
-						: connT("已重连", "Reconnected");
+						? connT("连接已断开", "連線已斷開", "Disconnected")
+						: eff === "connecting" ? connT("自动重连中", "自動重連中", "Reconnecting")
+						: connT("已重连", "已重連", "Reconnected");
 				}
 				if (netCount > 0) {
 					// "inline", not "": the class rule hides the badge with
@@ -1667,26 +1688,28 @@ function flag(name, dflt) {
 					// straight back to hidden — the badge must override it.
 					connChipBadge.style.display = "inline";
 					connChipBadge.textContent = "⚠ " + netCount;
-					connChipBadge.title = net.t(netCount + " 个请求卡住或失败", netCount + " stuck or failed request" + (netCount === 1 ? "" : "s"));
+					connChipBadge.title = net.t(netCount + " 个请求卡住或失败", netCount + " 個請求卡住或失敗", netCount + " stuck or failed request" + (netCount === 1 ? "" : "s"));
 				} else {
 					connChipBadge.style.display = "none";
 					connChipBadge.textContent = "";
 					connChipBadge.title = "";
 				}
 				connTitle.textContent = eff === "disconnected"
-					? connT("连接已断开", "Disconnected")
-					: eff === "connecting" ? connT("正在自动重连", "Reconnecting") + "…"
-					: connT("已重新连接", "Reconnected");
+					? connT("连接已断开", "連線已斷開", "Disconnected")
+					: eff === "connecting" ? connT("正在自动重连", "正在自動重連", "Reconnecting") + "…"
+					: connT("已重新连接", "已重新連線", "Reconnected");
 				connBody.textContent = eff === "disconnected"
 					? connT("与服务器的连接已断开，网络恢复后会自动重试；长时间未恢复时，手动刷新可以完整重建页面。",
+						"與伺服器的連線已斷開，網路恢復後會自動重試；長時間未恢復時，手動重新整理可以完整重建頁面。",
 						"The connection to the server is down; retries resume automatically once the network returns. If it stays down, a manual refresh rebuilds the page fully.")
 					: eff === "connecting"
 					? connT("连接中断，正在自动重试。若反复重连无效，手动刷新是始终可靠的恢复方式。",
+						"連線中斷，正在自動重試。若反覆重連無效，手動重新整理是始終可靠的恢復方式。",
 						"The connection dropped and automatic retries are running. If reconnecting keeps changing nothing, a manual refresh always recovers.")
-					: connT("连接已恢复，会话数据正在自动同步。", "The connection is back; session data is resyncing automatically.");
+					: connT("连接已恢复，会话数据正在自动同步。", "連線已恢復，會話資料正在自動同步。", "The connection is back; session data is resyncing automatically.");
 				connReconnectBtn.style.display = eff === "recovered" ? "none" : "";
-				connReconnectBtn.textContent = "⟳ " + connT("立即重连", "Reconnect now");
-				connRefreshBtn.textContent = "↻ " + connT("手动刷新", "Manual refresh");
+				connReconnectBtn.textContent = "⟳ " + connT("立即重连", "立即重連", "Reconnect now");
+				connRefreshBtn.textContent = "↻ " + connT("手动刷新", "手動重新整理", "Manual refresh");
 				// The line set and its signature are built on every render
 				// tick (bounded: at most the in-flight requests plus 50
 				// recent entries), but the row DOM is rebuilt only when the
@@ -1702,7 +1725,7 @@ function flag(name, dflt) {
 					}
 					var fi;
 					for (fi = 0; fi < net.failed.length; fi++) {
-						lines.push({ m: "✗", p: net.failed[fi].path, s: net.t("失败", "failed") });
+						lines.push({ m: "✗", p: net.failed[fi].path, s: net.t("失败", "失敗", "failed") });
 					}
 					var li;
 					for (li = 0; li < net.slow.length; li++) {
@@ -1717,8 +1740,8 @@ function flag(name, dflt) {
 					var sig = lines.map(function (l) { return l.m + "|" + l.p + "|" + l.s; }).join("\n");
 					if (sig !== connNetSig) {
 						connNetSig = sig;
-						connNetTitle.textContent = net.t("网络请求", "Network requests");
-						connNetProbe.textContent = net.t("探测服务", "Probe");
+						connNetTitle.textContent = net.t("网络请求", "網路請求", "Network requests");
+						connNetProbe.textContent = net.t("探测服务", "探測服務", "Probe");
 						while (connNetList.firstChild) connNetList.removeChild(connNetList.firstChild);
 						for (var ri = 0; ri < lines.length; ri++) {
 							var row = document.createElement("div");
@@ -2197,10 +2220,8 @@ function flag(name, dflt) {
 			var createPortalFn = null;
 			try { createPortalFn = require("react-dom").createPortal; } catch (e) {}
 
-			function mfxT(zh, en) {
-				try {
-					return (navigator.language || "en").toLowerCase().indexOf("zh") === 0 ? zh : en;
-				} catch (e) { return en; }
+			function mfxT(zh, hant, en) {
+				return mfxTr(zh, hant, en);
 			}
 
 			/* Host 0.2 rewired the data under this feature:
@@ -2743,7 +2764,7 @@ function flag(name, dflt) {
 						out.push(React.createElement("div", {
 							key: "ld" + pid,
 							style: { padding: "8px 12px 8px " + (10 + level * 14) + "px", opacity: ".6", fontSize: "12px" }
-						}, mfxT("正在加载代理目录…", "Loading the agent catalog…")));
+						}, mfxT("正在加载代理目录…", "正在載入代理目錄…", "Loading the agent catalog…")));
 						return;
 					}
 					if (models.length === 0 && cat !== undefined && cat.state === "error") {
@@ -2752,11 +2773,11 @@ function flag(name, dflt) {
 							style: { display: "flex", alignItems: "center", gap: "8px", padding: "6px 12px" }
 						},
 							React.createElement("span", { style: { fontSize: "12px", color: MFX_ERROR, flex: "1 1 auto" } },
-								mfxT("目录加载失败", "The catalog failed to load")),
+								mfxT("目录加载失败", "目錄載入失敗", "The catalog failed to load")),
 							React.createElement("button", {
 								type: "button", onClick: function () { forceCatalog(pid); bump(); },
 								style: { flex: "none", padding: "4px 10px", borderRadius: "8px", border: "1px solid rgba(128,128,140,.4)", background: "transparent", color: "inherit", fontSize: "12px", cursor: "pointer" }
-							}, mfxT("重试", "Retry"))));
+							}, mfxT("重试", "重試", "Retry"))));
 						return;
 					}
 					for (i = 0; i < models.length; i++) {
@@ -2795,7 +2816,7 @@ function flag(name, dflt) {
 									type: "button",
 									style: mfxChevButtonStyle,
 									"aria-expanded": isExpanded,
-									"aria-label": mfxT("展开子代理", "Expand subagents"),
+									"aria-label": mfxT("展开子代理", "展開子代理", "Expand subagents"),
 									onClick: (function (rowId) {
 										return function () { toggleBranch(rowId); };
 									})(model.id)
@@ -2820,7 +2841,7 @@ function flag(name, dflt) {
 					var body = [];
 					// lineage
 					if (lineage.length > 1) {
-						body.push(sectionLabel(mfxT("会话层级", "Session lineage")));
+						body.push(sectionLabel(mfxT("会话层级", "會話層級", "Session lineage")));
 						for (var li = 0; li < lineage.length; li++) {
 							(function (node, index) {
 								var isCurrent = index === lineage.length - 1;
@@ -2841,19 +2862,19 @@ function flag(name, dflt) {
 						}
 					}
 					// subagent tree rooted at the family root
-					body.push(sectionLabel(mfxT("子代理（", "Subagents (") + rootStats.count + mfxT("）", ")")));
+					body.push(sectionLabel(mfxT("子代理（", "子代理（", "Subagents (") + rootStats.count + mfxT("）", "）", ")")));
 					var treeOut = [];
 					branchRows(rootId, 0, treeOut);
 					if (treeOut.length === 0) {
 						treeOut.push(React.createElement("div", {
 							key: "none",
 							style: { padding: "8px 12px", opacity: ".6", fontSize: "12px" }
-						}, mfxT("没有子代理", "No subagents")));
+						}, mfxT("没有子代理", "沒有子代理", "No subagents")));
 					}
 					body.push.apply(body, treeOut);
 					// jobs
 					if (jobs.length > 0) {
-						body.push(sectionLabel(mfxT("后台任务（", "Background jobs (") + jobs.length + mfxT("）", ")")));
+						body.push(sectionLabel(mfxT("后台任务（", "背景任務（", "Background jobs (") + jobs.length + mfxT("）", "）", ")")));
 						for (var jbi = 0; jbi < jobs.length; jbi++) {
 							(function (job) {
 								var live = job.status === "running" || job.status === "stopping";
@@ -2891,7 +2912,7 @@ function flag(name, dflt) {
 							key: "mfx-sheet",
 							role: "dialog",
 							"aria-modal": "true",
-							"aria-label": mfxT("会话、子代理与后台任务", "Sessions, subagents and background jobs"),
+							"aria-label": mfxT("会话、子代理与后台任务", "會話、子代理與背景任務", "Sessions, subagents and background jobs"),
 							style: {
 								position: "fixed", left: "10px", right: "10px", top: top + "px",
 								maxHeight: "calc(100vh - " + (top + 12) + "px)", zIndex: MFX_SHEET_Z,
@@ -2915,7 +2936,7 @@ function flag(name, dflt) {
 								rootStats.running > 0 ? mfxDot(MFX_RUNNING, true) : null,
 								React.createElement("button", {
 									type: "button", onClick: closeSheet,
-									"aria-label": mfxT("关闭", "Close"),
+									"aria-label": mfxT("关闭", "關閉", "Close"),
 									style: { flex: "none", width: "30px", height: "30px", display: "grid", placeItems: "center", border: "none", borderRadius: "8px", background: "transparent", color: "inherit", cursor: "pointer" }
 								}, mfxCloseIcon())),
 							body)), document.body);
@@ -2931,7 +2952,7 @@ function flag(name, dflt) {
 							type: "button",
 							onClick: openSheet,
 							"aria-expanded": open,
-							"aria-label": mfxT("查看会话层级、子代理与后台任务", "View the session lineage, subagents and background jobs"),
+							"aria-label": mfxT("查看会话层级、子代理与后台任务", "檢視會話層級、子代理與背景任務", "View the session lineage, subagents and background jobs"),
 							style: {
 								flex: "1 1 auto", minWidth: 0, display: "flex", alignItems: "center",
 								gap: "8px", height: "30px", padding: "0 10px", borderRadius: "9px",
@@ -2947,10 +2968,10 @@ function flag(name, dflt) {
 									textAlign: "left", fontWeight: 500, fontSize: "13px"
 								}
 							}, currentTitle),
-							rootStats.count > 0 ? mfxBadge(mfxT(String(rootStats.count) + " 个代理", rootStats.count + " agents"), rootStats.running > 0 ? MFX_RUNNING : null) : null,
+							rootStats.count > 0 ? mfxBadge(mfxT(String(rootStats.count) + " 个代理", String(rootStats.count) + " 個代理", rootStats.count + " agents"), rootStats.running > 0 ? MFX_RUNNING : null) : null,
 							jobs.length > 0 ? mfxBadge(liveJobs > 0
-								? mfxT(String(liveJobs) + " 个任务", liveJobs + " jobs")
-								: mfxT(String(jobs.length) + " 个任务", jobs.length + " jobs"), liveJobs > 0 ? MFX_RUNNING : null) : null)),
+								? mfxT(String(liveJobs) + " 个任务", String(liveJobs) + " 個任務", liveJobs + " jobs")
+								: mfxT(String(jobs.length) + " 个任务", String(jobs.length) + " 個任務", jobs.length + " jobs"), liveJobs > 0 ? MFX_RUNNING : null) : null)),
 					sheet);
 			}
 
@@ -2961,7 +2982,7 @@ function flag(name, dflt) {
 					// the pill replaces the whole header row on phones; on
 					// desktops it renders null and the host chips stay
 					order: -20,
-					label: function () { return mfxT("顶部收纳", "Header collector"); }
+					label: function () { return mfxT("顶部收纳", "頂部收納", "Header collector"); }
 				}, CollectorPill);
 			});
 		}
