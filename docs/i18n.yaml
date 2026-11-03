@@ -1,10 +1,10 @@
 # Multilingual consistency record (dsh docs/i18n contract, extended to nine files): the git blob hash of each side as of the last confirmed-consistent state. All languages carry equal authority; after editing any side, bring the others along and re-record with `git hash-object`.
-README.md: e03bf6a73a9991a4f5127f5731a77b9a16a2e000
-docs/zh-Hans/README.md: 3eb1dc8a42610324e4f620f0e645ab8802aaf019
-docs/zh-Hant/README.md: a45142dd76408f2705be3f9a3dc902d2cdbce2dd
-docs/ja/README.md: c83120b29eb1327c9df7aa18236a7810d463eb7d
-docs/ko/README.md: daa8a6dcda44248e06ee43186c9f252f7710e1f3
-docs/es/README.md: 31a7dfe614dfffaa4201f16d94a52c344e9ea89b
-docs/fr/README.md: 5646f947a90ba1e27b13f380240241146890e665
-docs/de/README.md: c376a4b9d11be15f3413aa4ea302bd85f057e3d0
-docs/ru/README.md: d6afa422de589906e3f65b5211c950b7f422b7f7
+README.md: 57d3de21bd93268ffbd14058cce7146ec68231f1
+docs/zh-Hans/README.md: 50b0d135847d6ed3e232b9bc09761a8a496e4f31
+docs/zh-Hant/README.md: 0e09f9cf4eab68baf75b43d240bb699d3738e592
+docs/ja/README.md: 67c7d62734f9d3c596dd5973b65747835ac297b5
+docs/ko/README.md: caf24dbd71ad8f6091665ef8306cc74b44f7dc59
+docs/es/README.md: ac707c74bf9b995f55d7f86a2534a4b4751fcb6d
+docs/fr/README.md: 4b20dbb78af421b8a5bbea521616014fd0d93851
+docs/de/README.md: b76c4ebb600e8c769a39f9a5c00b1fce6ab344a8
+docs/ru/README.md: 307133c87f25cb4d27109ac487b5aedfd8f3ce09
