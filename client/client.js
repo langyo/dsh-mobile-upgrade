@@ -437,8 +437,15 @@ function mfxTr(hans, hant, en) {
 			// instead: the data-* hooks AppFrame / SidebarRoot / RightbarColumn
 			// set, plus the separator-anchored local-name substring ('_sidebarCol')
 			// which survives a rebuild because the local name is the source
-			// identifier while only the hash in front of it changes.
-			var HOST_FRAME = ':is([class*="_frame"], [data-sidebar-drawer])';
+			// identifier while only the hash in front of it changes. The frame is
+			// the one local name a bare substring must never carry into CSS:
+			// unrelated host modules end their own frame locals in '_frame' too,
+			// and two of those are grid containers in the 0.2.2 tree (attachment
+			// thumbnails, media placeholder), so the takeover's grid-template
+			// override would collapse them on phones. The CSS therefore binds to
+			// the published attribute plus the plugin's own data-mfx-frame marker,
+			// which the JS resolver sets on the single frame it settled on.
+			var HOST_FRAME = ':is([data-sidebar-drawer], [data-mfx-frame])';
 			var HOST_SIDEBAR_COL = ':is([class*="_sidebarCol"], [data-sidebar-mask] + div)';
 			var HOST_CENTER_COL = ':is([class*="_centerCol"], [data-sidebar-mask] + div + div)';
 			var HOST_RIGHTBAR_COL = ':is([data-rightbar-col], [class*="_rightbarCol"], [class*="_detailsCol"])';
@@ -823,11 +830,17 @@ function mfxTr(hans, hant, en) {
 			var hostAskedOnce = false;
 			// The host frame, found through a published attribute or the local-name
 			// substring — never a build hash (the hash is derived from the checkout
-			// path, so it differs per build tree).
+			// path, so it differs per build tree). Whichever probe settles is
+			// marked with the plugin's own attribute, so the takeover CSS binds to
+			// the one resolved frame and never to a local-name substring.
 			function hostFrame() {
 				try {
-					return document.querySelector('[data-sidebar-drawer]')
+					var frame = document.querySelector('[data-sidebar-drawer]')
 						|| document.querySelector('[class*="_frame"]');
+					if (frame !== null && !frame.hasAttribute("data-mfx-frame")) {
+						frame.setAttribute("data-mfx-frame", "");
+					}
+					return frame;
 				} catch (e) { return null; }
 			}
 			// The host's own drawer controls: SidebarRoot's header toggle
