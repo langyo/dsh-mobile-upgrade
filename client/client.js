@@ -17,7 +17,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	// The build this bundle is. Kept in step with package.json by
 	// scripts/check-manifest.mjs, and surfaced in the settings row plus the
 	// self-update banner below so a device can always say what it runs.
-	var BUILD = "0.8.11";
+	var BUILD = "0.8.12";
 
 	// Most of what this plugin renders lives inside native host slots; the
 	// documented exceptions are the narrow-screen drawer's floating button
@@ -26,24 +26,22 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	// plain-DOM overlays that must stay alive while the host's own React
 	// tree is frozen or wedged.
 	//
-	//   1. settings extras: ⟳ restart row in the General tab, and the
-	//      models/providers editor in the Models tab (localized labels).
-	//   2. narrow-screen settle: the fullscreen tool-details overlay — whose
-	//      close button is inert upstream — is not rendered on narrow screens.
-	//   3. narrow drawer: collapsed, the host's sidebar column is parked fully
+	//   1. settings extras: the ⟳ restart row in the General tab.
+	//   2. narrow drawer: collapsed, the host's sidebar column is parked fully
 	//      off-screen (invisible) and a plain-DOM floating button carrying its
 	//      own icon is the only thing left visible; opening slides the sidebar
-	//      in as a drawer (the toggle inside the drawer header is the host's
-	//      own, hHd-Xa_collapsed is the host rail's state signal). The panel's
-	//      width never changes, so the slide is transform-only and a busy main
-	//      thread cannot freeze it halfway; a tap that closes the drawer moves
-	//      the geometry in the same frame instead of waiting for the host's
+	//      in as a drawer (the host's own `[data-sidebar-drawer]` /
+	//      `[data-sidebar-collapsed]` / `[data-sidebar-toggle]` contracts are
+	//      the state signals — never a build hash). The panel's width never
+	//      changes, so the slide is transform-only and a busy main thread
+	//      cannot freeze it halfway; a tap that closes the drawer moves the
+	//      geometry in the same frame instead of waiting for the host's
 	//      re-render. The scrim is mounted inside the app root (overlayMount)
 	//      so skins that lift #root into a stacking context cannot paint it
-	//      over the drawer's contents.
-//   4. narrow settings: the dialog's side nav becomes horizontal top tabs.
-//   5. narrow model menu: the composer's model menu lands full-width.
-//   6. network watch: a wrapper around window.fetch tracks /api/ requests
+	//      over the drawer's contents. The host's own narrow-screen layout
+	//      (0.2.2 ships a drawer, narrow settings tabs and a bounded model
+	//      menu) is left alone: this plugin only adds the takeover ergonomics.
+//   3. network watch: a wrapper around window.fetch tracks /api/ requests
 //      that hang or fail; the warnings light the bottom-left connection
 //      chip and list inside the connection card (with a ping probe to
 //      tell a slow route from a deadlocked host). Nothing renders beside
@@ -118,11 +116,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //
 // Optional features are toggled with localStorage keys (value "0" = off):
 //   mfx-restart  (default on) — the ⟳ restart button
-//   mfx-settle   (default on) — the details-overlay settle
 //   mfx-drawer   (default on) — the whale-only rail + overlay drawer
-//   mfx-settings (default on) — the settings top-tabs layout
-//   mfx-modality (default on) — the provider-edit input-modality switches
-//   mfx-menus    (default on) — the model menu spanning the phone width
 //   mfx-net      (default on) — stuck/failed request tracking, surfaced in the connection card
 //   mfx-questions (default on) — the capped, scrollable question region
 //   mfx-selfupdate (default on) — reload the page when the plugin is upgraded
@@ -138,11 +132,7 @@ var sectionListeners = [];
 var loadNamespaceFlags = function () {};
 var NAMESPACE_FLAG_KEYS = {
 	restart: "restartEnabled",
-	settle: "settleEnabled",
 	drawer: "drawerEnabled",
-	settings: "settingsTabsEnabled",
-	modality: "modalityEnabled",
-	menus: "menusEnabled",
 	net: "netEnabled",
 	questions: "questionsEnabled",
 	selfupdate: "selfUpdateEnabled",
@@ -270,24 +260,6 @@ function mfxTr(hans, hant, en) {
 				}, ms - (now - last));
 			};
 		}
-		// ---------- 1. details-overlay suppression on narrow screens ----------
-		// On narrow viewports the tool-details panel becomes a fullscreen
-		// overlay with a close button that does nothing (tried: programmatic
-		// click, trusted click, Escape, outside taps) — the panel traps the
-		// chat behind it. The host offers no sanctioned close (ctx.layout is
-		// empty), so until upstream ships a working close, the overlay is
-		// simply not rendered on narrow screens.
-		if (flag("settle", true)) {
-			var dstyle2 = document.createElement("style");
-			dstyle2.id = "mfx-settle-style";
-			dstyle2.textContent = [
-				"@media (max-width: 1023px) {",
-				"  [class*=\"_2ctAZa_root\"] { display: none !important; }",
-				"}"
-			].join("\n");
-			document.head.appendChild(dstyle2);
-		}
-
 		// ---------- shared overlay home: plain-DOM overlays mount inside the app root ----------
 		// The plugin's fixed-position plain-DOM overlays (the drawer scrim, the
 		// toast, the self-update banner, the connection chip and card) used to
@@ -414,174 +386,6 @@ function mfxTr(hans, hant, en) {
 				}, RestartGeneralItem);
 			});
 		}
-		// ---------- 3b. multimodal switches inside the native provider edit form ----------
-		// Appends an input-modality switch group (text/image) to every
-		// model row of the native provider editor; toggles write the model's
-		// input array through the plugin route (provider + model id), which
-		// edits the active profile's settings document (0600 backup). The host
-		// form's own save issues minimal path ops and never touches the input field.
-		if (flag("modality", true)) {
-			var effectiveModels = null;
-			function findEffectiveModels(node, route, depth) {
-				if (!node || typeof node !== "object" || depth > 6) return null;
-				if (Array.isArray(node)) {
-					for (var i = 0; i < node.length; i++) {
-						var r = findEffectiveModels(node[i], route, depth + 1);
-						if (r) return r;
-					}
-					return null;
-				}
-				var ident = node.name ?? node.key ?? node.id ?? node.route;
-				if ((ident === route || (typeof ident === "string" && ident.indexOf(route) !== -1)) && Array.isArray(node.models)) return node.models;
-				var keys = Object.keys(node);
-				for (var j = 0; j < keys.length; j++) {
-					var r2 = findEffectiveModels(node[keys[j]], route, depth + 1);
-					if (r2) return r2;
-				}
-				return null;
-			}
-			function loadEffectiveModalities(route) {
-				try {
-					var llm = ctx.get ? ctx.get("remote.llm") : undefined;
-					if (!llm || !llm.listProviders) return Promise.resolve();
-					return Promise.resolve(llm.listProviders()).then(function (res) {
-						var value = res && res.value !== undefined ? res.value : res;
-						effectiveModels = value;
-						ensureModalitySwitches();
-					}).catch(function () {});
-				} catch (e) { return Promise.resolve(); }
-			}
-			function effectiveModelInput(route, modelId) {
-				if (!effectiveModels) return null;
-				var models = findEffectiveModels(effectiveModels, route, 0);
-				if (!models) return null;
-				var m = models.find(function (x) { return x && x.id === modelId; });
-				return m && Array.isArray(m.input) ? m.input : null;
-			}
-			function mfxEl(tag, cssText, text) {
-				var el = document.createElement(tag);
-				if (cssText) el.style.cssText = cssText;
-				if (text !== undefined) el.textContent = text;
-				return el;
-			}
-			function T(zh, hant, en) {
-				return mfxTr(zh, hant, en);
-			}
-			var modalityCache = null;
-			var modalityRoute = null;
-
-			function currentModelInput(route, modelId) {
-				if (!modalityCache || !modalityCache[route]) return null;
-				var section = modalityCache[route];
-				var fromList = (section.models ?? []).find(function (x) { return x && x.id === modelId; });
-				if (fromList && Array.isArray(fromList.input)) return fromList.input;
-				var overrides = section.modelOverrides;
-				if (overrides && overrides[modelId] && Array.isArray(overrides[modelId].input)) return overrides[modelId].input;
-				return null;
-			}
-
-			var ensureModalitySwitches = function () {
-				try {
-					var panel = document.querySelector('[class*="VOzbGW_panel"]');
-					if (!panel) return;
-					var routeEl = panel.querySelector('[class*="zGbnIq_editorRoute"]');
-					var route = routeEl ? routeEl.textContent.trim() : null;
-					if (!route) return;
-					if (route !== modalityRoute || !modalityCache) {
-						// (re)load the on-disk state for this route
-						modalityRoute = route;
-						fetch(ROUTE_PREFIX + "/llm-config", { cache: "no-store" })
-							.then(function (r) { return r.json(); })
-							.then(function (d) {
-								if (d.ok) { modalityCache = d.providers ?? {}; ensureModalitySwitches(); }
-							})
-							.catch(function () {});
-						loadEffectiveModalities(route);
-						return;
-					}
-					// Render from the route cache while the optional remote.llm
-					// namespace is unavailable (or still loading); the effective
-					// catalog refines the values when it arrives.
-					if (!effectiveModels) loadEffectiveModalities(route);
-					var entries = panel.querySelectorAll('[class*="zGbnIq_modelEntry"]');
-					Array.prototype.forEach.call(entries, function (entry) {
-						var existing = entry.querySelector(".mfx-modality");
-						if (existing) {
-							// late config arrival: re-sync toggle states from disk
-							if (modalityCache && modalityCache[route]) {
-								var mid = (entry.querySelector("input") || {}).value || "";
-								var cur = effectiveModelInput(route, mid) ?? currentModelInput(route, mid) ?? ["text"];
-								entry.querySelectorAll("input[data-mod]").forEach(function (cb) {
-									if (cb._busy) return;
-									var want = cur.indexOf(cb.getAttribute("data-mod")) !== -1;
-									if (cb.checked !== want) cb.checked = want;
-								});
-							}
-							return;
-						}
-						var idInput = entry.querySelector('input');
-						var modelId = idInput ? idInput.value.trim() : "";
-						var known = false;
-						if (modelId && modalityCache && modalityCache[route] &&
-							Array.isArray(modalityCache[route].models)) {
-							// only user-customised routes are patchable; catalog models
-							// keep their declared modalities (read-only display)
-							known = modalityCache[route].models.some(function (x) { return x && x.id === modelId; });
-						}
-						var bar = mfxEl("div", "display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:6px 0 2px;padding:0 2px;font-size:12px;color:var(--dsw-alias-label-secondary);");
-						bar.className = "mfx-modality";
-						bar.appendChild(mfxEl("span", "font-size:12px;opacity:.75;flex:none;", T("输入模态", "輸入模態", "Input")));
-						var current = effectiveModelInput(route, modelId)
-							?? currentModelInput(route, modelId)
-							?? ["text"];
-						["text", "image"].forEach(function (mod) {
-							var lb = mfxEl("label", "display:flex;align-items:center;gap:4px;cursor:pointer;flex:none;color:var(--dsw-alias-label-primary);");
-							lb.title = known ? "" : T("表单保存后生效", "表單儲存後生效", "Takes effect after the form is saved");
-							var cb = mfxEl("input");
-							cb.style.cssText = "accent-color:var(--dsw-alias-brand-primary);width:14px;height:14px;margin:0;cursor:pointer;";
-							cb.type = "checkbox";
-							cb.checked = known && current.indexOf(mod) !== -1;
-							cb.disabled = !known;
-							cb.addEventListener("change", function () {
-								var input = ["text", "image"].filter(function (m) {
-									return bar.querySelector('input[data-mod="' + m + '"]').checked;
-								});
-								cb._busy = true;
-								fetch(ROUTE_PREFIX + "/model-input", {
-									method: "POST",
-									headers: { "content-type": "application/json" },
-									body: JSON.stringify({ provider: route, modelId: modelId, input: input })
-								})
-								.then(function (r) { return r.json(); })
-								.then(function (d) {
-									if (!d.ok) { bar.title = "✗ " + (d.error || "save failed"); cb._busy = false; return; }
-									// Fold the saved value into the cache so the next re-sync
-									// keeps the checkbox instead of reverting it.
-									if (modalityCache && modalityCache[route]) {
-										var section = modalityCache[route];
-										var model = (section.models || []).find(function (x) { return x && x.id === modelId; });
-										if (!model && section.modelOverrides && section.modelOverrides[modelId]) model = section.modelOverrides[modelId];
-										if (model) {
-											if (input.length > 0) model.input = input.slice();
-											else delete model.input;
-										}
-									}
-									bar.title = "";
-									cb._busy = false;
-								})
-								.catch(function () { cb._busy = false; });
-							});
-							cb.setAttribute("data-mod", mod);
-							lb.appendChild(cb);
-							lb.appendChild(mfxEl("span", "", mod));
-							bar.appendChild(lb);
-						});
-						entry.appendChild(bar);
-					});
-				} catch (e) {}
-			};
-			setInterval(ensureModalitySwitches, 900);
-		}
 		// ---------- 4. narrow drawer: a floating icon button plus a real
 		// off-canvas sidebar ----------
 		// Collapsed, the host's sidebar column is parked fully off-screen —
@@ -593,9 +397,9 @@ function mfxTr(hans, hant, en) {
 		// those hooks going stale leaked rail content into the chip (the
 		// "DSH / 对话" squeeze the 2026-10-21 report screenshotted). Opening
 		// slides the panel in from the button's side; closing slides it back
-		// out while the button fades in. The host rail's own state
-		// (hHd-Xa_collapsed) only decides when the takeover may land — the
-		// plugin owns the geometry.
+		// out while the button fades in. The host frame's own drawer state
+		// ([data-sidebar-drawer] + [data-sidebar-collapsed]) only decides when
+		// the takeover may land — the plugin owns the geometry.
 		if (flag("drawer", true)) {
 			// The narrow/desktop decision must use the same measure as the
 			// drawer's own @media (max-width: 1023px) rules. window.innerWidth
@@ -623,6 +427,28 @@ function mfxTr(hans, hant, en) {
 			overlayMount(scrim);
 
 
+			// Host selectors, NOT build hashes. DSH compiles its CSS Modules with
+			// a '[hash]_[local]' pattern (packages/client/tsdown.client.ts) and
+			// the hash is derived from the checkout's absolute path, so a
+			// selector written against one build's hash matches that one build
+			// and nothing else (measured: the 0.1.6 tree, ~/dsh-stage and
+			// ~/apps/dsh produce three different hashes for the same
+			// AppFrame.module.css). Bind to the host's published contracts
+			// instead: the data-* hooks AppFrame / SidebarRoot / RightbarColumn
+			// set, plus the separator-anchored local-name substring ('_sidebarCol')
+			// which survives a rebuild because the local name is the source
+			// identifier while only the hash in front of it changes. The frame is
+			// the one local name a bare substring must never carry into CSS:
+			// unrelated host modules end their own frame locals in '_frame' too,
+			// and two of those are grid containers in the 0.2.2 tree (attachment
+			// thumbnails, media placeholder), so the takeover's grid-template
+			// override would collapse them on phones. The CSS therefore binds to
+			// the published attribute plus the plugin's own data-mfx-frame marker,
+			// which the JS resolver sets on the single frame it settled on.
+			var HOST_FRAME = ':is([data-sidebar-drawer], [data-mfx-frame])';
+			var HOST_SIDEBAR_COL = ':is([class*="_sidebarCol"], [data-sidebar-mask] + div)';
+			var HOST_CENTER_COL = ':is([class*="_centerCol"], [data-sidebar-mask] + div + div)';
+			var HOST_RIGHTBAR_COL = ':is([data-rightbar-col], [class*="_rightbarCol"], [class*="_detailsCol"])';
 			var dstyle = document.createElement("style");
 			dstyle.id = "mfx-drawer-style";
 			dstyle.textContent = [
@@ -633,10 +459,18 @@ function mfxTr(hans, hant, en) {
 				   drawer leaves the grid flow, and without pinning, auto-placement
 				   drops the center column into the 0px first track (blank content)
 				   and the details column into the full-width second track. */
-				"  [class*=\"pI_x6G_frame\"] { grid-template-columns: 0px minmax(0,1fr) 0px !important; }",
-				"  [class*=\"pI_x6G_frame\"] > [class*=\"pI_x6G_sidebarCol\"] { grid-column: 1; }",
-				"  [class*=\"pI_x6G_frame\"] > [class*=\"pI_x6G_centerCol\"] { grid-column: 2; }",
-				"  [class*=\"pI_x6G_frame\"] > [class*=\"pI_x6G_detailsCol\"] { grid-column: 3; }",
+				"  " + HOST_FRAME + " { grid-template-columns: 0px minmax(0,1fr) 0px !important; }",
+				"  " + HOST_FRAME + " > " + HOST_SIDEBAR_COL + " { grid-column: 1; }",
+				"  " + HOST_FRAME + " > " + HOST_CENTER_COL + " { grid-column: 2; }",
+				"  " + HOST_FRAME + " > " + HOST_RIGHTBAR_COL + " { grid-column: 3; }",
+				/* 0.2.2 already renders its own narrow-screen drawer: an absolute
+				   sidebar column, a mask, and transform/visibility transitions.
+				   This plugin keeps its takeover for the ergonomics (a 56px
+				   floating entry point, a scrim painted above the page chrome,
+				   a close tap landing in the tap's own task), so neutralise the
+				   host mask (two backdrops would stack) and pin the panel above
+				   the scrim regardless of the host's own z-index for it. */
+				"  [data-sidebar-mask] { display: none !important; }",
 				/* the sidebar column is ALWAYS the drawer surface on mobile: a
 				   full-height panel of drawer width. It is never a shrunken chip —
 				   the collapsed look belongs to the plugin's own floating button
@@ -654,16 +488,16 @@ function mfxTr(hans, hant, en) {
 				   element the containing block for the fixed-position settings
 				   dialog that portals inside the sidebar subtree, and a settled
 				   state must leave that dialog on the real viewport. */
-				"  [class*=\"pI_x6G_sidebarCol\"] { position: fixed; top: 0 !important; bottom: 0 !important;",
+				"  " + HOST_SIDEBAR_COL + " { position: fixed !important; top: 0 !important; bottom: 0 !important;",
 				"    left: 0 !important; right: auto !important; width: min(280px, 84vw) !important;",
-				"    height: auto !important; z-index: 130; overflow: hidden;",
+				"    height: auto !important; z-index: 130 !important; overflow: hidden;",
 				"    border-radius: 0 !important; box-shadow: 0 0 44px rgba(0,0,0,.4);",
 				"    background-color: #ffffff !important; -webkit-backdrop-filter: none; backdrop-filter: none;",
 				"    background-image: linear-gradient(var(--dsw-specific-sidebar-fill, transparent), var(--dsw-specific-sidebar-fill, transparent)),",
 				"      linear-gradient(var(--dsw-alias-bg-layer-1, transparent), var(--dsw-alias-bg-layer-1, transparent)),",
 				"      linear-gradient(var(--dsw-alias-bg-base, transparent), var(--dsw-alias-bg-base, transparent)) !important; }",
-				"  html.mfx-chip-right [class*=\"pI_x6G_sidebarCol\"] { left: auto !important; right: 0 !important; }",
-				"  body[data-ds-dark-theme] [class*=\"pI_x6G_sidebarCol\"] { background-color: #151517 !important; }",
+				"  html.mfx-chip-right " + HOST_SIDEBAR_COL + " { left: auto !important; right: 0 !important; }",
+				"  body[data-ds-dark-theme] " + HOST_SIDEBAR_COL + " { background-color: #151517 !important; }",
 				/* closed: parked out of sight entirely. visibility:hidden at
 				   rest — the panel is simply not there, whatever the host
 				   renders inside it (including a rail the host left expanded
@@ -675,8 +509,8 @@ function mfxTr(hans, hant, en) {
 				   over-constrained absolute positioning resolves to left+width
 				   in LTR, and whichever edge the base rule sent to auto is the
 				   one that lands at -100vw. */
-				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) [class*=\"pI_x6G_sidebarCol\"] { visibility: hidden; left: -100vw !important; right: -100vw !important; }",
-				"  html.mfx-drawer-open [class*=\"pI_x6G_sidebarCol\"] { visibility: visible; }",
+				"  html:not(.mfx-drawer-open):not(.mfx-drawer-closing) " + HOST_SIDEBAR_COL + " { visibility: hidden; left: -100vw !important; right: -100vw !important; }",
+				"  html.mfx-drawer-open " + HOST_SIDEBAR_COL + " { visibility: visible !important; }",
 				/* open/close motion — transform ONLY while animating, so every
 				   frame runs on the compositor and a busy main thread can never
 				   catch the drawer halfway across the screen. The geometry never
@@ -687,10 +521,10 @@ function mfxTr(hans, hant, en) {
 				   opacity on the drawer itself while sliding: sub-1 opacity
 				   would make it the containing block for the fixed settings
 				   dialog that portals inside the sidebar subtree. */
-				"  html.mfx-drawer-anim-in [class*=\"pI_x6G_sidebarCol\"] { visibility: visible; animation: mfxDrawerIn 300ms cubic-bezier(.25,.7,.3,1) both; }",
-				"  html.mfx-drawer-closing [class*=\"pI_x6G_sidebarCol\"] { visibility: visible; animation: mfxDrawerOut 260ms ease-in both; }",
-				"  html.mfx-chip-right.mfx-drawer-anim-in [class*=\"pI_x6G_sidebarCol\"] { animation-name: mfxDrawerInRight; }",
-				"  html.mfx-chip-right.mfx-drawer-closing [class*=\"pI_x6G_sidebarCol\"] { animation-name: mfxDrawerOutRight; }",
+				"  html.mfx-drawer-anim-in " + HOST_SIDEBAR_COL + " { visibility: visible; animation: mfxDrawerIn 300ms cubic-bezier(.25,.7,.3,1) both; visibility: visible !important; }",
+				"  html.mfx-drawer-closing " + HOST_SIDEBAR_COL + " { visibility: visible; animation: mfxDrawerOut 260ms ease-in both; visibility: visible !important; }",
+				"  html.mfx-chip-right.mfx-drawer-anim-in " + HOST_SIDEBAR_COL + " { animation-name: mfxDrawerInRight; }",
+				"  html.mfx-chip-right.mfx-drawer-closing " + HOST_SIDEBAR_COL + " { animation-name: mfxDrawerOutRight; }",
 				"  html.mfx-drawer-open #mfx-scrim, html.mfx-drawer-closing #mfx-scrim { display: block; }",
 				"  html.mfx-drawer-open #mfx-scrim { animation: mfxScrimIn 300ms ease both; }",
 				"  html.mfx-drawer-closing #mfx-scrim { animation: mfxScrimOut 260ms ease-in both; pointer-events: none; }",
@@ -770,12 +604,15 @@ function mfxTr(hans, hant, en) {
 			function updateFabIcon() {
 				if (fabIconDone) return;
 				try {
-					var svg = document.querySelector('[class*="hHd-Xa_railMark"] svg')
-						|| document.querySelector('[data-slot="sidebar.brand.mark"] svg')
-						|| document.querySelector('[class*="hHd-Xa_brandMark"] svg');
+					// Host-stable sources only: the brand slot the sidebar publishes,
+					// then the rail/header mark's local class name, then the toggle's
+					// own glyph (never latched — see below). No build hash is used.
+					var svg = document.querySelector('[data-slot="sidebar.brand.mark"] svg')
+						|| document.querySelector('[class*="_railMark"] svg')
+						|| document.querySelector('[class*="_brandMark"] svg');
 					var source = "brand";
 					if (!svg) {
-						svg = document.querySelector('[class*="hHd-Xa_toggle"] svg');
+						svg = document.querySelector('[data-sidebar-toggle] svg');
 						source = "toggle-glyph";
 					}
 					if (!svg) return;
@@ -983,17 +820,64 @@ function mfxTr(hans, hant, en) {
 			//   * the toggle inside the drawer's header is the host's own —
 			//     tapping it closes on the spot.
 			var initialized = false;
+			// True once the viewport has been seen in desktop mode: the desktop rail
+			// reads EXPANDED by design, so that expanded state must never be read
+			// as "the phone starts with the drawer open" on the way back to narrow.
+			var sawDesktop = false;
 			var drawerStart = Date.now();
 			var pendingOpen = false;
 			var openChaseArmed = false;
 			var hostAskedOnce = false;
-			function railRoot() {
-				try { return document.querySelector('[class*="hHd-Xa_root"]'); } catch (e) { return null; }
+			// The host frame, found through a published attribute or the local-name
+			// substring — never a build hash (the hash is derived from the checkout
+			// path, so it differs per build tree). Whichever probe settles is
+			// marked with the plugin's own attribute, so the takeover CSS binds to
+			// the one resolved frame and never to a local-name substring.
+			function hostFrame() {
+				try {
+					var frame = document.querySelector('[data-sidebar-drawer]')
+						|| document.querySelector('[class*="_frame"]');
+					if (frame !== null && !frame.hasAttribute("data-mfx-frame")) {
+						frame.setAttribute("data-mfx-frame", "");
+					}
+					return frame;
+				} catch (e) { return null; }
+			}
+			// The host's own drawer controls: SidebarRoot's header toggle
+			// ([data-sidebar-toggle]) and the window-chrome opener the frame's
+			// shell.leading seat mounts for a hidden sidebar ([data-sidebar-opener]).
+			function hostOpenControl() {
+				try {
+					return document.querySelector('[data-sidebar-opener]')
+						|| document.querySelector('[data-sidebar-toggle]');
+				} catch (e) { return null; }
+			}
+			function hostToggleControl() {
+				try {
+					return document.querySelector('[data-sidebar-toggle]')
+						|| document.querySelector('[data-sidebar-opener]');
+				} catch (e) { return null; }
 			}
 			function railCollapsed() {
-				var rail = railRoot();
-				if (!rail) return null;
-				return String(rail.className).indexOf("hHd-Xa_collapsed") !== -1;
+				// 0.2 hosts own the narrow-screen drawer: below 768px the frame
+				// carries data-sidebar-drawer and data-sidebar-collapsed, and the
+				// rail root NEVER gets a collapsed class there (SidebarRoot keeps its
+				// wide layout while the drawer is active). Reading a rail class was
+				// why a cold phone boot read "expanded" and the takeover opened
+				// itself. Between that breakpoint and this plugin's 1024px one the
+				// host keeps a regular rail column instead, so read the frame's own
+				// first grid track: it is the rail width while collapsed.
+				try {
+					var frame = hostFrame();
+					if (!frame) return null;
+					if (frame.hasAttribute('data-sidebar-drawer')) {
+						return frame.hasAttribute('data-sidebar-collapsed');
+					}
+					var track = String(frame.style.gridTemplateColumns || '').trim().split(/\s+/)[0];
+					var px = parseFloat(track);
+					if (isNaN(px)) return null;
+					return px <= 80;
+				} catch (e) { return null; }
 			}
 			function setDrawer(open) {
 				drawerOpen = open;
@@ -1045,6 +929,10 @@ function mfxTr(hans, hant, en) {
 						// guessing the takeover's first state
 						if (Date.now() - drawerStart < 4000) return;
 						collapsed = true;
+					} else if (sawDesktop) {
+						// a desktop excursion already expanded the host rail: never read
+						// that as a phone's first frame, or the drawer opens by itself
+						collapsed = true;
 					}
 					initialized = true;
 					setDrawer(collapsed === false);
@@ -1068,9 +956,20 @@ function mfxTr(hans, hant, en) {
 						// reach it). If the host ignores it, the takeover stays
 						// shut and the user can tap the button again.
 						openChaseArmed = false;
-						var t = document.querySelector('[class*="hHd-Xa_toggle"]');
+						var t = hostOpenControl();
 						if (t) t.click();
 					}
+					return;
+				}
+				// The host's own controls can move the drawer without this plugin
+				// asking: the window-chrome opener, Escape, the host mask, a
+				// remount after a reconnect. Mirror that state rather than leaving
+				// the takeover out of step with the host's drawer — a closed
+				// takeover over an open host drawer keeps the panel hidden, and a
+				// standing takeover over a closed one keeps the scrim armed.
+				if (!hostAskedOnce && collapsed !== null && drawerOpen !== null
+					&& drawerOpen !== (collapsed === false)) {
+					setDrawer(collapsed === false);
 				}
 			}
 			// Closing is ours: the geometry moves in the tap's own task, the
@@ -1086,7 +985,7 @@ function mfxTr(hans, hant, en) {
 					var delay = hostAlreadyToggling ? 600 : 250;
 					setTimeout(function () {
 						if (railCollapsed() !== false) return;
-						var t = document.querySelector('[class*="hHd-Xa_toggle"]');
+						var t = hostToggleControl();
 						if (t) t.click();
 					}, delay);
 				}
@@ -1096,8 +995,19 @@ function mfxTr(hans, hant, en) {
 					applyFabPos();
 					updateFabIcon();
 					if (desktopMQ.matches) {
-						// desktop: the sidebar is a regular grid column, never a drawer
+						// desktop: the sidebar is a regular grid column, never a drawer.
+						// Pin the takeover as initialised-and-CLOSED here: the desktop rail
+						// reads EXPANDED by design, and a viewport that folds from desktop
+						// down to a phone must not let observeDrawer() mistake that expanded
+						// rail for a first frame and open the drawer by itself (measured:
+						// desktop -> 390px opened at t=8138 with no tap, then the user's
+						// first tap landed on the scrim and closed it again -- the
+						// opens-then-flashes-away report).
 						if (drawerOpen !== false) setDrawer(false);
+						initialized = true;
+						sawDesktop = true;
+						pendingOpen = false;
+						openChaseArmed = false;
 						return;
 					}
 					observeDrawer();
@@ -1141,23 +1051,24 @@ function mfxTr(hans, hant, en) {
 						requestDrawerOpen();
 						return;
 					}
-					var onToggle = target && target.closest && target.closest('[class*="hHd-Xa_toggle"]');
-					// the toggle inside the drawer's header closes on the spot
-					// (it is the host's own button, reachable only while the
-					// panel stands — closed, the whole panel is off-screen)
-					if (onToggle && !desktopMQ.matches) {
-						if (drawerOpen) {
-							collapseDrawer(true);
-						} else {
-							// unreachable through a real tap while closed, but
-							// kept for safety: mirror the open request rather
-							// than fight whatever the host is doing
-							pendingOpen = true;
-						}
+					// The host's own controls (the window-chrome opener and the
+					// drawer's header toggle) are left to the host: it owns the
+					// drawer it now ships. A tap on the drawer's own toggle still
+					// closes the takeover in the tap's own task; every other host
+					// control is mirrored by observeDrawer() after the fact.
+					var onHostControl = target && target.closest
+						&& target.closest('[data-sidebar-toggle], [data-sidebar-opener]');
+					if (onHostControl && !desktopMQ.matches) {
+						if (drawerOpen && target.closest('[data-sidebar-toggle]')) collapseDrawer(true);
 						return;
 					}
 					if (!document.documentElement.classList.contains("mfx-drawer-open")) return;
-					if (document.querySelector('[class*="VOzbGW_overlay"]')) return;
+					// A modal opened above the drawer (settings, a plugin page,
+					// the command palette…) owns the tap: the drawer stays put
+					// while it stands. The host tags its modal layers with
+					// data-shortcut-modal; the sidebar's own drawer is the
+					// exception (it IS the takeover).
+					if (document.querySelector('[data-shortcut-modal]:not([data-shortcut-modal="sidebar"])')) return;
 					// Two taps close the takeover, and only two:
 					//   * the scrim — our own element, the only thing that
 					//     really is "outside";
@@ -1257,119 +1168,6 @@ function mfxTr(hans, hant, en) {
 					if (!document.hidden) setTimeout(checkBuild, 1500);
 				});
 			}
-		}
-
-		// ---------- 5. settings dialog: the side nav becomes top tabs on narrow screens ----------
-		if (flag("settings", true)) {
-			var sstyle = document.createElement("style");
-			sstyle.id = "mfx-settings-style";
-			sstyle.textContent = [
-				"@media (max-width: 700px) {",
-				"  [class*=\"VOzbGW_panel\"] { display: flex !important; flex-direction: column !important;",
-				"    position: relative !important; }",
-				"  [class*=\"VOzbGW_panel\"] [class*=\"VOzbGW_close\"] { position: absolute !important;",
-				"    top: 16px !important; right: 12px !important; }",
-				/* the content header (actions + close) collapses once the close
-				   lives beside the title — no dead gap under the tab row */
-				"  [class*=\"VOzbGW_panel\"] [class*=\"VOzbGW_header\"] { min-height: 0 !important;",
-				"    height: auto !important; padding: 0 !important; margin: 0 !important; }",
-				"  [class*=\"VOzbGW_panel\"] [class*=\"VOzbGW_nav\"] { display: block !important; width: 100% !important;",
-				"    flex: none !important; padding-bottom: 8px !important; }",
-				"  [class*=\"VOzbGW_panel\"] [class*=\"VOzbGW_navList\"] { display: flex !important;",
-				"    flex-direction: row !important; width: 100% !important;",
-				"    overflow-x: auto !important; gap: 6px !important; padding: 2px 4px !important; }",
-				"  [class*=\"VOzbGW_panel\"] [class*=\"VOzbGW_navCell\"] { display: flex !important;",
-				"    flex-direction: row !important; align-items: center !important; width: auto !important;",
-				"    flex: none !important; white-space: nowrap !important; }",
-				"  [class*=\"VOzbGW_panel\"] [class*=\"VOzbGW_navLabel\"] { display: inline-block !important;",
-				"    width: auto !important; max-width: none !important; overflow: visible !important;",
-				"    padding: 0 !important; }",
-				"  [class*=\"VOzbGW_panel\"] [class*=\"VOzbGW_navCell\"] svg { flex: none !important;",
-				"    width: 16px !important; height: 16px !important; border: none !important;",
-				"    padding: 0 !important; }",
-				/* kill the host's stray column-mode indicator lines under the labels */
-				"  [class*=\"VOzbGW_panel\"] [class*=\"VOzbGW_navCell\"]::before,",
-				"  [class*=\"VOzbGW_panel\"] [class*=\"VOzbGW_navCell\"]::after,",
-				"  [class*=\"VOzbGW_panel\"] [class*=\"VOzbGW_navLabel\"]::before,",
-				"  [class*=\"VOzbGW_panel\"] [class*=\"VOzbGW_navLabel\"]::after { content: none !important;",
-				"    display: none !important; }",
-				"  [class*=\"VOzbGW_panel\"] [class*=\"VOzbGW_navLabel\"] { border: none !important;",
-				"    box-shadow: none !important; text-decoration: none !important; }",
-				/* uniform pill look; the active cell keeps the host's gray fill */
-				"  [class*=\"VOzbGW_panel\"] [class*=\"VOzbGW_navCell\"] { border-radius: 10px !important;",
-				"    border: 1px solid rgba(128,128,128,.30) !important; padding: 8px 14px !important; }",
-				"  [class*=\"VOzbGW_panel\"] [class*=\"VOzbGW_navCell\"]:not([class*=\"VOzbGW_active\"])",
-				"  { background: transparent !important; }",
-				"  [class*=\"VOzbGW_panel\"] [class*=\"VOzbGW_navList\"] { scrollbar-width: none !important; }",
-				"  [class*=\"VOzbGW_panel\"] [class*=\"VOzbGW_navList\"]::-webkit-scrollbar",
-				"  { display: none !important; }",
-				"  [class*=\"VOzbGW_panel\"] [class*=\"VOzbGW_content\"] { flex: 1 1 auto !important; width: 100% !important;",
-				"    min-height: 0 !important; overflow-y: auto !important; padding-top: 0 !important; }",
-				"}"
-			].join("\n");
-			document.head.appendChild(sstyle);
-		}
-
-		// ---------- 6. narrow model menu: the menu lands full-width on phones ----------
-		// The host pins the two-level composer model menu (ModelSelect) to its
-		// trigger with right:0 + width:max-content, so on a phone the box lands
-		// past the left viewport edge and clips the model names. On narrow
-		// screens the menu is re-anchored in viewport coordinates — exactly the
-		// phone width minus margins — while the host keeps owning the vertical
-		// placement (absolute above the trigger, so the keyboard moving the
-		// composer carries the menu along). Absolute offsets also dodge the
-		// fixed-position containing-block traps of the glassy composer card.
-		if (flag("menus", true)) {
-			var MFX_MENU_MARK = "_7KE1Ra_menu"; // ModelSelect.module.css "menu"
-			var placeMenus = function () {
-				var narrow = window.innerWidth <= 700;
-				var menus = document.querySelectorAll('[class*="' + MFX_MENU_MARK + '"]');
-				Array.prototype.forEach.call(menus, function (menu) {
-					if (!narrow) {
-						// wide screens: hand the landing back to the host — but
-						// only undo our own placement, identified by the styles
-						// the narrow branch always sets (width, or right:auto).
-						// Since 0.1.5 the host positions this menu itself with an
-						// inline left/top pair; wiping left unconditionally threw
-						// the menu to the viewport's left edge on desktop.
-						if (menu.style.width || menu.style.right) {
-							menu.style.boxSizing = "";
-							menu.style.left = "";
-							menu.style.right = "";
-							menu.style.width = "";
-							menu.style.minWidth = "";
-							menu.style.maxWidth = "";
-						}
-						return;
-					}
-					var root = menu.parentElement;
-					if (!root) return;
-					var r = root.getBoundingClientRect();
-					if (r.width === 0 && r.height === 0) return;
-					// border-box: the host menu is content-box, so its own
-					// padding would otherwise widen the box past the margins
-					menu.style.boxSizing = "border-box";
-					menu.style.left = (12 - r.left) + "px";
-					menu.style.right = "auto";
-					menu.style.width = (window.innerWidth - 24) + "px";
-					menu.style.minWidth = "0";
-					menu.style.maxWidth = "none";
-				});
-			};
-			// the menu mounts on open and remounts across pane switches; the
-			// observer restyles it before its first paint, the interval catches
-			// layout drift the observer misses. The observer callback is
-			// throttled: streaming tokens append nodes continuously, and an
-			// unthrottled substring querySelectorAll per mutation starves
-			// input handling during a multi-session storm.
-			var placeMenusThrottled = mfxThrottle(placeMenus, 250);
-			try {
-				new MutationObserver(placeMenusThrottled).observe(document.body,
-					{ subtree: true, childList: true });
-			} catch (e) {}
-			window.addEventListener("resize", placeMenusThrottled);
-			setInterval(placeMenus, 1000);
-			placeMenus();
 		}
 
 		// Shared stuck/failed request state: section 7 fills it, the
