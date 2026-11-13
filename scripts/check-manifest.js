@@ -173,6 +173,48 @@ for (const path of files) {
 }
 ok('retired name survives only as the documented legacy settings key')
 
+// --- the retired drawer must not creep back ---------------------------------
+//
+// The narrow-screen drawer takeover (floating button + scrim + state machine)
+// was retired now that the host ships its own drawer with open buttons in the
+// window chrome's top corners. The identifiers the feature owned must not
+// return through a bad merge or a careless revert: the DOM ids, the plugin
+// classes and the settings key are allowed nowhere, and the legacy
+// localStorage keys only in the nine READMEs that announce the retirement
+// (one mention each).
+
+function readmeAllow(count) {
+  // The nine READMEs, at any depth, may mention each legacy key once; this
+  // file itself has to spell every token out in order to look for it.
+  return [['README.md', count], ['scripts/check-manifest.js', Number.POSITIVE_INFINITY]].concat(
+    readdirSync(join(root, 'docs'), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => [`docs/${entry.name}/README.md`, count]),
+  )
+}
+
+const retiredFeatureTokens = [
+  { token: 'mfx-fab', allow: new Map([['scripts/check-manifest.js', Number.POSITIVE_INFINITY]]), },
+  { token: 'mfx-scrim', allow: new Map([['scripts/check-manifest.js', Number.POSITIVE_INFINITY]]), },
+  { token: 'mfx-drawer-style', allow: new Map([['scripts/check-manifest.js', Number.POSITIVE_INFINITY]]), },
+  { token: 'mfx-fab-style', allow: new Map([['scripts/check-manifest.js', Number.POSITIVE_INFINITY]]), },
+  { token: 'mfx-chip-right', allow: new Map([['scripts/check-manifest.js', Number.POSITIVE_INFINITY]]), },
+  { token: 'drawerEnabled', allow: new Map([['scripts/check-manifest.js', Number.POSITIVE_INFINITY]]), },
+  { token: 'mfx-drawer', allow: new Map(readmeAllow(1)) },
+  { token: 'mfx-chip-side', allow: new Map(readmeAllow(1)) },
+  { token: 'mfx-chip-top', allow: new Map(readmeAllow(1)) },
+]
+for (const { token, allow } of retiredFeatureTokens) {
+  for (const path of files) {
+    const hits = text(path).split(token).length - 1
+    const allowed = allow.get(path) ?? 0
+    if (hits > allowed) {
+      fail(path, `mentions the retired drawer token "${token}" ${hits} time(s); only ${allowed} allowed`)
+    }
+  }
+}
+ok('retired drawer survives only as the documented legacy localStorage keys')
+
 // --- the documented install command must be identical in every README ------
 
 const install = `dsh plugin --profile web add ${name}`
