@@ -49,6 +49,6 @@
     }
   },
   "scripts": {
-    "check": "node --check lib/index.js && node --check client/client.js && node scripts/check-manifest.mjs"
+    "check": "node --check lib/index.js && node --check client/client.js && node scripts/check-manifest.js"
   }
 }
