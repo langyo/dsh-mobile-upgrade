@@ -1,7 +1,7 @@
 {
   "name": "dsh-mobile-upgrade",
-  "version": "0.8.12",
-  "description": "Mobile UI fixes for the DeepSeek Harness web profile: a restart row, a narrow-screen drawer with a floating entry point, a scrollable question region, a throttled reaction to streaming message storms, a guarded subagent-catalog refresh, click-to-open lineage chips, a narrow-header collector sheet, a throttled session-list render under background streaming load, and a hover-kept connection card with manual refresh. Binds the host's stable data-* contracts and local class names, never build hashes, so a rebuild cannot silently disable it.",
+  "version": "0.8.13",
+  "description": "Mobile UI fixes for the DeepSeek Harness web profile: a restart row, a scrollable question region, a throttled reaction to streaming message storms, a guarded subagent-catalog refresh, click-to-open lineage chips, a narrow-header collector sheet, a throttled session-list render under background streaming load, and a hover-kept connection card with manual refresh. Binds the host's stable data-* contracts and local class names, never build hashes, so a rebuild cannot silently disable it.",
   "license": "SySL-1.0",
   "type": "module",
   "main": "lib/index.js",
