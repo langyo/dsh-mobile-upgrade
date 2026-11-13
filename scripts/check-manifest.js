@@ -160,7 +160,7 @@ const retired = ['mobile-ui-fix']
 // Two intentional survivors in the host half — the retired settings namespace
 // and the retired route prefix, both compatibility reads — plus this file, which
 // has to spell the retired name out in order to look for it.
-const allowlist = new Map([[host, 2], ['scripts/check-manifest.mjs', Number.POSITIVE_INFINITY]])
+const allowlist = new Map([[host, 2], ['scripts/check-manifest.js', Number.POSITIVE_INFINITY]])
 for (const path of files) {
   const body = text(path)
   for (const old of retired) {

@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	var ROUTE_PREFIX = "/plugins/" + PLUGIN_ID;
 
 	// The build this bundle is. Kept in step with package.json by
-	// scripts/check-manifest.mjs, and surfaced in the settings row plus the
+	// scripts/check-manifest.js, and surfaced in the settings row plus the
 	// self-update banner below so a device can always say what it runs.
 	var BUILD = "0.8.12";
 
