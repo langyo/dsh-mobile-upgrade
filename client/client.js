@@ -1189,21 +1189,29 @@ function mfxTr(hans, hant, en) {
 				var snap = null;
 				try { snap = netWatch.snapshot(); } catch (e) { return; }
 				if (snap.probing) return;
-				var gap = connAlarm ? CONN_ALARM_PROBE_GAP_MS
-					: snap.stuck.length > 0 ? CONN_STUCK_PROBE_GAP_MS : CONN_PROBE_GAP_MS;
-				if (connAlarm || snap.pending) {
-					if (now - connAutoProbeAt >= gap) {
+				// An active strike sequence (the scheduled second strike)
+				// takes precedence: the pair must land ~1.5s apart to mean
+				// "two consecutive dead answers", whether or not the failure
+				// rows are still in their keep window. Without this
+				// precedence the pending branch's 15s gap swallows the
+				// second strike and the documented fast escalation never
+				// happens on a busy page.
+				if (!connAlarm && connConfirmAt > 0) {
+					if (now >= connConfirmAt) {
 						connAutoProbeAt = now;
 						netWatch.probe(false).then(function (r) { connOnProbeResult(r, false); });
 					}
 					return;
 				}
-				// Second strike: the first automatic probe failed; one more
-				// chance 1.5s later before crying wolf. The probes themselves
-				// are the alarm evidence — fresh dead answers justify the
-				// alarm even if the failure row that triggered them has aged
-				// out of the keep window in between.
-				if (!connAlarm && connConfirmAt > 0 && now >= connConfirmAt) {
+				if (connAlarm) {
+					if (now - connAutoProbeAt >= CONN_ALARM_PROBE_GAP_MS) {
+						connAutoProbeAt = now;
+						netWatch.probe(false).then(function (r) { connOnProbeResult(r, false); });
+					}
+					return;
+				}
+				var gap = snap.stuck.length > 0 ? CONN_STUCK_PROBE_GAP_MS : CONN_PROBE_GAP_MS;
+				if (snap.pending && now - connAutoProbeAt >= gap) {
 					connAutoProbeAt = now;
 					netWatch.probe(false).then(function (r) { connOnProbeResult(r, false); });
 				}
@@ -1289,6 +1297,11 @@ function mfxTr(hans, hant, en) {
 						try { connOnState(svc.state.getSnapshot()); } catch (e) {}
 					});
 					connOnState(svc.state.getSnapshot());
+					// A page loaded while the transport is already down never
+					// sees a connected→X edge: stamp the outage here so the
+					// persistence window (and the card it earns) applies from
+					// boot too.
+					if (connState !== "connected") connOutageAt = Date.now();
 					return true;
 				} catch (e) {
 					return false;
