@@ -951,20 +951,23 @@ function mfxTr(hans, hant, en) {
 						: eff === "connecting" ? connT("自动重连中", "自動重連中", "Reconnecting")
 						: connT("已重连", "已重連", "Reconnected");
 				}
-				if (netAlarm) {
+				if (netProbing && netWarn) {
+					// While a liveness probe is running the badge IS the
+					// blinking test light — a pulse, not a number. This wins
+					// over the static alarm badge too: during an alarm
+					// re-check the blink is the live "testing" signal (the
+					// red border and label keep carrying the alarm).
+					connChipBadge.style.display = "inline";
+					connChipBadge.setAttribute("data-blink", "1");
+					connChipBadge.textContent = "●";
+					connChipBadge.title = net.t("正在探测服务…", "正在探測服務…", "Probing the service…");
+				} else if (netAlarm) {
 					// Probe-confirmed dead host: the one state that earns the
 					// static warning badge — still no number on it.
 					connChipBadge.style.display = "inline";
 					connChipBadge.removeAttribute("data-blink");
 					connChipBadge.textContent = "⚠";
 					connChipBadge.title = net.t("服务对探测请求无响应", "服務對探測請求無回應", "Service not answering probes");
-				} else if (netProbing && netWarn) {
-					// While a liveness probe is running the badge IS the
-					// blinking test light — a pulse, not a count.
-					connChipBadge.style.display = "inline";
-					connChipBadge.setAttribute("data-blink", "1");
-					connChipBadge.textContent = "●";
-					connChipBadge.title = net.t("正在探测服务…", "正在探測服務…", "Probing the service…");
 				} else {
 					connChipBadge.style.display = "none";
 					connChipBadge.removeAttribute("data-blink");
@@ -1041,9 +1044,11 @@ function mfxTr(hans, hant, en) {
 					}
 				} else {
 					// An alarm keeps the section on even after its evidence
-					// rows age out — it stays until a probe answers, and the
-					// empty rebuild below wipes any stale rows so the
-					// section shows the probe button over an honest list.
+					// rows age out — it stays until a probe answers. Stale
+					// rows cannot survive here: when the signature changes
+					// (including to empty) the rebuild below wipes the list,
+					// and when the section was already hidden the wipe
+					// happened on that hidden transition.
 					connNet.setAttribute("data-on", "1");
 					var sig = lines.map(function (l) {
 						return l.m + "|" + l.p + "|" + l.s + "|" + (l.blink ? "b" : "") + (l.dim ? "d" : "");
