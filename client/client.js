@@ -32,7 +32,8 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //      per-occurrence count — with a blinking light while a liveness probe
 //      is testing the host. A failure no longer cries wolf on its own:
 //      during a transport outage the transport states own the message (and
-//      a recovery wipes the stale warnings), and while the transport is up
+//      a recovery wipes the stale warnings — recorded failures and any
+//      request still hanging from the outage), and while the transport is up
 //      a failure only turns red after a probe confirms the host really
 //      stopped answering — the false positives a busy streaming page used
 //      to produce (requests slow merely because the server is pushing
@@ -541,15 +542,32 @@ function mfxTr(hans, hant, en) {
 			// The liveness probe, shared by the card's button (manual — with
 			// toasts) and the connection card's confirmation logic (silent).
 			// Single-flight: a call while one is running resolves "busy"
-			// without firing a second request.
+			// without firing a second request (the manual tap still gets its
+			// acknowledgement toast — a dead tap on the one control a wedged
+			// user presses is worse than a repeated toast).
 			function runNetProbe(manual) {
-				if (netProbing) return Promise.resolve("busy");
+				if (netProbing) {
+					if (manual) netToast("⏳ " + netT("正在探测服务…", "正在探測服務…", "Probing the service…"));
+					return Promise.resolve("busy");
+				}
 				var t0 = Date.now();
 				var ctl = new AbortController();
 				var timer = setTimeout(function () { ctl.abort(); }, 5000);
 				netProbing = { at: t0, manual: !!manual };
 				if (manual) netToast("⏳ " + netT("正在探测服务…", "正在探測服務…", "Probing the service…"));
-				return fetch(ROUTE_PREFIX + "/ping", { cache: "no-store", signal: ctl.signal }).then(
+				var p;
+				try {
+					p = fetch(ROUTE_PREFIX + "/ping", { cache: "no-store", signal: ctl.signal });
+				} catch (e) {
+					// a fetch shim that throws synchronously never answers —
+					// clear the latch (a stuck probing flag would wedge the
+					// whole confirmation machine) and report it as unanswered
+					clearTimeout(timer);
+					netProbing = null;
+					if (manual) netToast("✗ " + netT("服务无响应（5s 超时）——宿主可能卡死，可在 设置 → 通用 里重启服务", "服務無回應（5s 逾時）——宿主可能卡死，可在 設定 → 一般 裡重新啟動服務", "No answer within 5s — the host may be deadlocked; restart it from Settings → General"));
+					return Promise.resolve("dead");
+				}
+				return p.then(
 					function () {
 						clearTimeout(timer);
 						netProbing = null;
@@ -583,9 +601,12 @@ function mfxTr(hans, hant, en) {
 					}
 				},
 				// The transport recovered: a clean slate, so a reconnect is
-				// never followed by a stale warning badge (the reported
-				// "已重连 ⚠1" leftover was exactly this).
-				clearRecent: function () { netRecent = []; },
+				// never followed by a stale warning badge or a stuck row from
+				// a request that hung across the outage (the reported
+				// "已重连 ⚠1" leftover was exactly this). In-flight tracking
+				// is dropped too — their settles splice against an empty
+				// list and are ignored.
+				clearRecent: function () { netRecent = []; netInflight = []; },
 				snapshot: function () {
 					var now = Date.now();
 					var cut = now - NET_KEEP_MS;
@@ -1011,8 +1032,18 @@ function mfxTr(hans, hant, en) {
 				}
 				if (lines.length === 0 && !netAlarm) {
 					connNet.setAttribute("data-on", "0");
-					connNetSig = "";
+					// Wipe on the transition to hidden, so a section that
+					// re-opens later (new failure, alarm) never resurrects
+					// rows whose records are already gone.
+					if (connNetSig !== "") {
+						connNetSig = "";
+						while (connNetList.firstChild) connNetList.removeChild(connNetList.firstChild);
+					}
 				} else {
+					// An alarm keeps the section on even after its evidence
+					// rows age out — it stays until a probe answers, and the
+					// empty rebuild below wipes any stale rows so the
+					// section shows the probe button over an honest list.
 					connNet.setAttribute("data-on", "1");
 					var sig = lines.map(function (l) {
 						return l.m + "|" + l.p + "|" + l.s + "|" + (l.blink ? "b" : "") + (l.dim ? "d" : "");
@@ -1120,10 +1151,14 @@ function mfxTr(hans, hant, en) {
 					// A real outage earns the card takeover only after it has
 					// persisted past CONN_OUTAGE_CARD_MS (see connOnState):
 					// short drop-recover blips never take the card over a
-					// conversation that was never actually interrupted.
+					// conversation that was never actually interrupted. The
+					// stamp is consumed by the auto-open, so a dismissal
+					// sticks — the chip alone keeps carrying the state for
+					// the rest of the episode.
 					if (connOutageAt > 0 && eff !== "recovered" && !connCardOpen
 						&& now - connOutageAt >= CONN_OUTAGE_CARD_MS) {
 						connOpenCard();
+						connOutageAt = 0;
 					}
 					connProbeConfirmTick(now);
 					if (connCardOpen && !connPointerIn) {
@@ -1158,9 +1193,11 @@ function mfxTr(hans, hant, en) {
 					}
 					return;
 				}
-				// Second strike: the first automatic probe failed; give the
-				// host one more chance CONN_PROBE_GAP_MS-scale later (the
-				// scheduled moment) before crying wolf.
+				// Second strike: the first automatic probe failed; one more
+				// chance 1.5s later before crying wolf. The probes themselves
+				// are the alarm evidence — fresh dead answers justify the
+				// alarm even if the failure row that triggered them has aged
+				// out of the keep window in between.
 				if (!connAlarm && connConfirmAt > 0 && now >= connConfirmAt) {
 					connAutoProbeAt = now;
 					netWatch.probe(false).then(function (r) { connOnProbeResult(r, false); });
