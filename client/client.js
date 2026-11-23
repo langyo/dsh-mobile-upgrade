@@ -1794,12 +1794,13 @@ function mfxTr(hans, hant, en) {
 				"  [class*=\"_tabs\"]::-webkit-scrollbar { display: none !important; }",
 				// count-chip label collapse: the collector pill is the query
 				// container (container-type:inline-size on the button), so a
-				// pill narrower than ~180px border-box (~160px content) — phones, or a device
-				// that keeps more header utilities — drops the 代理/任务
-				// labels and keeps the bare counts instead of clipping them.
-				// A host without container-query support simply ignores the
-				// rule and keeps the labels (the chip then clips at the pill
-				// edge, exactly like any overflowing inline badge).
+				// pill whose content box is narrower than ~160px (~183px
+				// border-box with the pill's own padding and border) — phones,
+				// or a device that keeps more header utilities — drops the
+				// 代理/任务 labels and keeps the bare counts instead of
+				// clipping them. A host without container-query support
+				// simply ignores the rule and keeps the labels (the button's
+				// own overflow:hidden then clips the chip at the pill edge).
 				"  @container (max-width: 160px) {",
 				"    [data-mfx-collector] [data-mfx-counts] .mfx-count-label { display: none; }",
 				"}",
@@ -1865,13 +1866,13 @@ function mfxTr(hans, hant, en) {
 				if (rootStats.count > 0) {
 					segs.push({
 						n: rootStats.count, live: rootStats.running > 0,
-						label: mfxT("代理", "代理", "agents")
+						label: mfxT("代理", "代理", " agents")
 					});
 				}
 				if (jobsTotal > 0) {
 					segs.push({
 						n: liveJobs > 0 ? liveJobs : jobsTotal, live: liveJobs > 0,
-						label: mfxT("任务", "任務", "jobs")
+						label: mfxT("任务", "任務", " jobs")
 					});
 				}
 				if (segs.length === 0) return null;
