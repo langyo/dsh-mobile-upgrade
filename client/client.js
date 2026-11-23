@@ -17,7 +17,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 	// The build this bundle is. Kept in step with package.json by
 	// scripts/check-manifest.js, and surfaced in the settings row plus the
 	// self-update banner below so a device can always say what it runs.
-	var BUILD = "0.8.14";
+	var BUILD = "0.8.15";
 
 	// Most of what this plugin renders lives inside native host slots; the
 	// documented exceptions are the connection chip and card, the self-update
@@ -69,10 +69,14 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //      their navigate click).
 // 12. narrow header collector: below 1024px the header's chips (lineage,
 //      jobs, preset) are wider than the phone and hover-only. They fold
-//      into one pill (title + agent/job badges); tapping it opens a
-//      full-width sheet with the lineage, the live subagent tree (rows
-//      from the session list; branches fetch their catalog on demand,
-//      guarded), and this session's background jobs.
+//      into one pill (title + one compact agent/job summary chip whose
+//      single flex:none width can never paint past the pill's border,
+//      the failure mode the old badge pair hit on phones; below 160px of
+//      pill content width the chip's labels collapse to bare counts
+//      via a container query); tapping it opens a full-width sheet with the
+//      lineage, the live subagent tree (rows from the session list;
+//      branches fetch their catalog on demand, guarded), and this
+//      session's background jobs.
 // 13. list render throttle: the host's control stream pushes a whole-value
 //      projection frame for EVERY projection change of EVERY attached
 //      session — a running subagent's timing view changes on each
@@ -103,7 +107,12 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //      quick drop-recover blip never pops the card: it opens only once an
 //      outage has persisted a few seconds (or a probe has confirmed the
 //      host is truly not answering), so a streaming page reconnecting
-//      under load shows nothing but a brief "reconnected" chip.
+//      under load shows nothing but a brief "reconnected" chip. The chip
+//      and card draw their surfaces, labels, borders and shadows from the
+//      host's theme tokens (the same pair its menu surfaces use) — they
+//      follow the active theme instead of the old fixed near-black fill,
+//      and the shared probe toast rides the host's toast tokens; all of
+//      it degrades to the previous literals on a host without the tokens.
 //
 // Optional features are toggled with localStorage keys (value "0" = off):
 //   mfx-restart  (default on) — the ⟳ restart button
@@ -295,8 +304,11 @@ function mfxTr(hans, hant, en) {
 		function toast(text) {
 			if (!toastEl) {
 				toastEl = document.createElement("div");
+				// Colors ride the host's own toast tokens (the same pair its
+				// toast renderer uses), so the probe toasts look native in
+				// both themes; the literals are the pre-theme-host fallback.
 				toastEl.style.cssText = "position:fixed;left:50%;bottom:88px;transform:translateX(-50%);" +
-					"z-index:90;font-size:12px;color:#eee;background:rgba(20,20,24,.88);" +
+					"z-index:90;font-size:12px;color:var(--dsw-alias-toast-label,#eee);background:var(--dsw-alias-toast-bg,rgba(20,20,24,.88));" +
 					"padding:5px 12px;border-radius:8px;max-width:76vw;white-space:nowrap;" +
 					"overflow:hidden;text-overflow:ellipsis;pointer-events:none";
 				overlayMount(toastEl);
@@ -721,11 +733,21 @@ function mfxTr(hans, hant, en) {
 				// benign degradation) if the host renames the locals.
 				"[class*=\"_indicator_\"][class*=\"_warning_\"],",
 				"[class*=\"_indicator_\"][class*=\"_success_\"] { display: none !important; }",
+				// Surfaces, labels and shadows ride the host's theme tokens —
+				// the same pair its menu surfaces use (--dsw-specific-menu +
+				// the menu backdrop filter), so the chip reads as a native
+				// light-surface control on light themes instead of a fixed
+				// black pill. The literals are the pre-theme-host fallback:
+				// without the tokens this degrades to the old dark look.
 				"#mfx-conn-chip { position: fixed; left: 12px; bottom: 12px; z-index: 92; display: none;",
 				"  align-items: center; gap: 7px; height: 30px; padding: 0 12px 0 10px; border-radius: 15px;",
-				"  border: 1px solid rgba(128,128,128,.4); background: rgba(24,24,28,.94); color: #eee;",
+				"  border: 1px solid var(--dsw-alias-border-l3, rgba(128,128,128,.4));",
+				"  background: var(--dsw-specific-menu, rgba(24,24,28,.94));",
+				"  -webkit-backdrop-filter: var(--dsw-menu-backdrop-filter, blur(14px));",
+				"  backdrop-filter: var(--dsw-menu-backdrop-filter, blur(14px));",
+				"  color: var(--dsw-alias-label-primary, #eee);",
 				"  font-family: inherit; font-size: 12px; font-weight: 500; line-height: 18px; cursor: pointer;",
-				"  box-shadow: 0 4px 14px rgba(0,0,0,.3); }",
+				"  box-shadow: var(--dsw-elevation-panel, 0 4px 14px rgba(0,0,0,.3)); }",
 				"#mfx-conn-chip[data-on=\"1\"] { display: inline-flex; }",
 				"#mfx-conn-chip[data-state=\"disconnected\"] { border-color: rgba(214,88,80,.6); }",
 				"#mfx-conn-chip[data-state=\"connecting\"] { border-color: rgba(214,138,48,.6); }",
@@ -754,8 +776,13 @@ function mfxTr(hans, hant, en) {
 				"@keyframes mfx-conn-pulse { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }",
 				"#mfx-conn-card { position: fixed; left: 12px; bottom: 48px; z-index: 93;",
 				"  width: min(320px, calc(100vw - 24px)); box-sizing: border-box; padding: 14px; border-radius: 14px;",
-				"  border: 1px solid rgba(128,128,128,.4); background: rgba(24,24,28,.96); color: #eee;",
-				"  font-family: inherit; font-size: 13px; line-height: 20px; box-shadow: 0 8px 28px rgba(0,0,0,.4);",
+				"  border: 1px solid var(--dsw-alias-border-l3, rgba(128,128,128,.4));",
+				"  background: var(--dsw-specific-menu, rgba(24,24,28,.96));",
+				"  -webkit-backdrop-filter: var(--dsw-menu-backdrop-filter, blur(14px));",
+				"  backdrop-filter: var(--dsw-menu-backdrop-filter, blur(14px));",
+				"  color: var(--dsw-alias-label-primary, #eee);",
+				"  font-family: inherit; font-size: 13px; line-height: 20px;",
+				"  box-shadow: var(--dsw-elevation-panel, 0 8px 28px rgba(0,0,0,.4));",
 				"  display: none; }",
 				"#mfx-conn-card[data-open=\"1\"] { display: block; }",
 				"#mfx-conn-card .mfx-conn-head { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }",
@@ -763,25 +790,27 @@ function mfxTr(hans, hant, en) {
 				"#mfx-conn-card .mfx-conn-x { flex: none; width: 24px; height: 24px; display: inline-flex;",
 				"  align-items: center; justify-content: center; border: none; border-radius: 6px; background: transparent;",
 				"  color: inherit; font-size: 14px; line-height: 1; cursor: pointer; }",
-				"#mfx-conn-card .mfx-conn-x:hover { background: rgba(255,255,255,.1); }",
-				"#mfx-conn-card .mfx-conn-body { margin: 0 0 12px; color: rgba(238,238,238,.72); }",
+				"#mfx-conn-card .mfx-conn-x:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(255,255,255,.1)); }",
+				"#mfx-conn-card .mfx-conn-body { margin: 0 0 12px; color: var(--dsw-alias-label-secondary, rgba(238,238,238,.72)); }",
 				"#mfx-conn-card .mfx-conn-actions { display: flex; gap: 8px; }",
 				"#mfx-conn-card .mfx-conn-btn { flex: 1; height: 32px; border-radius: 8px;",
-				"  border: 1px solid rgba(128,128,128,.4); background: transparent; color: #eee;",
+				"  border: 1px solid var(--dsw-alias-border-l3, rgba(128,128,128,.4)); background: transparent;",
+				"  color: var(--dsw-alias-label-primary, #eee);",
 				"  font-family: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }",
-				"#mfx-conn-card .mfx-conn-btn:hover { background: rgba(255,255,255,.08); }",
-				"#mfx-conn-card .mfx-conn-btn.mfx-conn-primary { background: #4f7cd6; border-color: #4f7cd6; color: #fff; }",
-				"#mfx-conn-card .mfx-conn-btn.mfx-conn-primary:hover { background: #5d89de; }",
+				"#mfx-conn-card .mfx-conn-btn:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(255,255,255,.08)); }",
+				"#mfx-conn-card .mfx-conn-btn.mfx-conn-primary { background: var(--dsw-alias-button-info-fill, #4f7cd6); border-color: var(--dsw-alias-button-info-fill, #4f7cd6); color: var(--dsw-alias-label-on-color, #fff); }",
+				"#mfx-conn-card .mfx-conn-btn.mfx-conn-primary:hover { background: var(--dsw-alias-button-info-hover, #5d89de); }",
 				"#mfx-conn-card .mfx-conn-net { display: none; margin: 12px 0; padding-top: 10px;",
-				"  border-top: 1px solid rgba(128,128,128,.25); }",
+				"  border-top: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,.25)); }",
 				"#mfx-conn-card .mfx-conn-net[data-on=\"1\"] { display: block; }",
 				"#mfx-conn-card .mfx-conn-nethead { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }",
 				"#mfx-conn-card .mfx-conn-nettitle { flex: 1; min-width: 0; font-weight: 600; font-size: 12px; }",
 				"#mfx-conn-card .mfx-conn-netprobe { flex: none; height: 22px; padding: 0 10px; border-radius: 6px;",
-				"  border: 1px solid rgba(128,128,128,.4); background: transparent; color: #eee;",
+				"  border: 1px solid var(--dsw-alias-border-l3, rgba(128,128,128,.4)); background: transparent;",
+				"  color: var(--dsw-alias-label-primary, #eee);",
 				"  font-family: inherit; font-size: 11px; cursor: pointer;",
 				"  display: inline-flex; align-items: center; gap: 5px; }",
-				"#mfx-conn-card .mfx-conn-netprobe:hover { background: rgba(255,255,255,.08); }",
+				"#mfx-conn-card .mfx-conn-netprobe:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(255,255,255,.08)); }",
 				// The probe button's own light: grey idle, blinking amber while
 				// the probe runs, green/red for a few seconds on the result —
 				// the "testing" signal the badge shows on the chip.
@@ -793,7 +822,7 @@ function mfxTr(hans, hant, en) {
 				"#mfx-conn-card .mfx-probe-light[data-state=\"dead\"] { background: #d65850; }",
 				"#mfx-conn-card .mfx-conn-netlist { max-height: 132px; overflow-y: auto;",
 				"  overscroll-behavior: contain; font-size: 11px; line-height: 17px;",
-				"  color: rgba(238,238,238,.72); }",
+				"  color: var(--dsw-alias-label-secondary, rgba(238,238,238,.72)); }",
 				"#mfx-conn-card .mfx-conn-netrow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }",
 				// Confirmed-alive failures and slow rows are context, not news:
 				// dimmed, still one row per path.
@@ -1763,6 +1792,17 @@ function mfxTr(hans, hant, en) {
 				// of overflowing the row
 				"  [class*=\"_tabs\"] { overflow-x: auto !important; scrollbar-width: none !important; }",
 				"  [class*=\"_tabs\"]::-webkit-scrollbar { display: none !important; }",
+				// count-chip label collapse: the collector pill is the query
+				// container (container-type:inline-size on the button), so a
+				// pill narrower than ~182px border-box (<=160px content) — phones, or a device
+				// that keeps more header utilities — drops the 代理/任务
+				// labels and keeps the bare counts instead of clipping them.
+				// A host without container-query support simply ignores the
+				// rule and keeps the labels (the chip then clips at the pill
+				// edge, exactly like any overflowing inline badge).
+				"  @container (max-width: 160px) {",
+				"    [data-mfx-collector] [data-mfx-counts] .mfx-count-label { display: none; }",
+				"}",
 				"}"
 			].join("\n");
 			document.head.appendChild(hstyle);
@@ -1806,6 +1846,64 @@ function mfxTr(hans, hant, en) {
 						color: "inherit", background: "rgba(128,128,140,.12)"
 					}
 				}, text);
+			}
+
+			// One compact summary chip for the collector pill ("14 代理 ·
+			// 4 任务", a live dot per segment). It replaces the old pair of
+			// bordered badges: both were flex:none, so on a phone the header
+			// row regularly gave the pill less than their combined
+			// min-content — the badges painted past the pill's border while
+			// the title collapsed to nothing (the squeezed-header report).
+			// One chip halves the unusable width; the title keeps priority
+			// (it shrinks to zero first); and the pill carries
+			// container-type:inline-size, so below 160px of pill content width the
+			// segment labels drop and the chip degrades to bare counts
+			// (dots + numbers) instead of clipping — the standard responsive
+			// collapse, never a clipped badge.
+			function mfxCountsChip(rootStats, liveJobs, jobsTotal) {
+				var segs = [];
+				if (rootStats.count > 0) {
+					segs.push({
+						n: rootStats.count, live: rootStats.running > 0,
+						label: mfxT("代理", "代理", "agents")
+					});
+				}
+				if (jobsTotal > 0) {
+					segs.push({
+						n: liveJobs > 0 ? liveJobs : jobsTotal, live: liveJobs > 0,
+						label: mfxT("任务", "任務", "jobs")
+					});
+				}
+				if (segs.length === 0) return null;
+				var kids = [];
+				for (var i = 0; i < segs.length; i++) {
+					if (i > 0) kids.push(React.createElement("span", {
+						key: "sep" + i, style: { flex: "none", opacity: ".45" }
+					}, "·"));
+					kids.push(React.createElement("span", {
+						key: "seg" + i,
+						style: { display: "inline-flex", alignItems: "center", gap: "3px", minWidth: "0" }
+					},
+						segs[i].live ? React.createElement("span", {
+							"aria-hidden": "true",
+							style: {
+								flex: "none", width: "6px", height: "6px", borderRadius: "50%",
+								background: MFX_RUNNING, boxShadow: "0 0 0 2px " + MFX_RUNNING + "40"
+							}
+						}) : null,
+						React.createElement("span", { style: { flex: "none" } }, String(segs[i].n)),
+						React.createElement("span", { className: "mfx-count-label", style: { flex: "none" } }, segs[i].label)));
+				}
+				return React.createElement("span", {
+					"data-mfx-counts": "1",
+					style: {
+						flex: "none", display: "inline-flex", alignItems: "center",
+						gap: "4px", padding: "2px 6px", borderRadius: "8px", overflow: "hidden",
+						background: "rgba(128,128,140,.14)", fontSize: "11px",
+						lineHeight: "16px", whiteSpace: "nowrap",
+						fontVariantNumeric: "tabular-nums"
+					}
+				}, kids);
 			}
 
 			function mfxChevron(open) {
@@ -2390,7 +2488,14 @@ function mfxTr(hans, hant, en) {
 								flex: "1 1 auto", minWidth: 0, display: "flex", alignItems: "center",
 								gap: "8px", height: "30px", padding: "0 10px", borderRadius: "9px",
 								border: "1px solid var(--dsw-alias-border-l2, rgba(128,128,140,.35))",
-								background: "transparent", color: "inherit", cursor: "pointer", fontSize: "12px"
+								background: "transparent", color: "inherit", cursor: "pointer", fontSize: "12px",
+								// the row can hand the pill less than its
+								// min-content (chip + burger); clip instead of
+								// painting past the rounded border. inline-size
+								// containment makes the pill the query container
+								// for the label collapse below.
+								overflow: "hidden",
+								containerType: "inline-size"
 							}
 						},
 							mfxBurger(),
@@ -2401,10 +2506,7 @@ function mfxTr(hans, hant, en) {
 									textAlign: "left", fontWeight: 500, fontSize: "13px"
 								}
 							}, currentTitle),
-							rootStats.count > 0 ? mfxBadge(mfxT(String(rootStats.count) + " 个代理", String(rootStats.count) + " 個代理", rootStats.count + " agents"), rootStats.running > 0 ? MFX_RUNNING : null) : null,
-							jobs.length > 0 ? mfxBadge(liveJobs > 0
-								? mfxT(String(liveJobs) + " 个任务", String(liveJobs) + " 個任務", liveJobs + " jobs")
-								: mfxT(String(jobs.length) + " 个任务", String(jobs.length) + " 個任務", jobs.length + " jobs"), liveJobs > 0 ? MFX_RUNNING : null) : null)),
+							mfxCountsChip(rootStats, liveJobs, jobs.length))),
 					sheet);
 			}
 
