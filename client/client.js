@@ -71,7 +71,7 @@ window.__ModuleLoader__.load({ id: "dsh-mobile-upgrade", factory: (require) => {
 //      jobs, preset) are wider than the phone and hover-only. They fold
 //      into one pill (title + one compact agent/job summary chip whose
 //      single flex:none width can never paint past the pill's border,
-//      the failure mode the old badge pair hit on phones; below 160px of
+//      the failure mode the old badge pair hit on phones; below ~160px of
 //      pill content width the chip's labels collapse to bare counts
 //      via a container query); tapping it opens a full-width sheet with the
 //      lineage, the live subagent tree (rows from the session list;
@@ -1794,7 +1794,7 @@ function mfxTr(hans, hant, en) {
 				"  [class*=\"_tabs\"]::-webkit-scrollbar { display: none !important; }",
 				// count-chip label collapse: the collector pill is the query
 				// container (container-type:inline-size on the button), so a
-				// pill narrower than ~182px border-box (<=160px content) — phones, or a device
+				// pill narrower than ~180px border-box (~160px content) — phones, or a device
 				// that keeps more header utilities — drops the 代理/任务
 				// labels and keeps the bare counts instead of clipping them.
 				// A host without container-query support simply ignores the
@@ -1856,7 +1856,7 @@ function mfxTr(hans, hant, en) {
 			// the title collapsed to nothing (the squeezed-header report).
 			// One chip halves the unusable width; the title keeps priority
 			// (it shrinks to zero first); and the pill carries
-			// container-type:inline-size, so below 160px of pill content width the
+			// container-type:inline-size, so below ~160px of pill content width the
 			// segment labels drop and the chip degrades to bare counts
 			// (dots + numbers) instead of clipping — the standard responsive
 			// collapse, never a clipped badge.

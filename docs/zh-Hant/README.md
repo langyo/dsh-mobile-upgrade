@@ -2,7 +2,7 @@
 
 [English](../../README.md) | [简体中文](../zh-Hans/README.md) | 繁體中文 | [日本語](../ja/README.md) | [한국어](../ko/README.md) | [Español](../es/README.md) | [Français](../fr/README.md) | [Deutsch](../de/README.md) | [Русский](../ru/README.md)
 
-面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）web profile 的行動版體驗修復，以單一外掛交付。介面幾乎都透過宿主自身的槽位與狀態訊號呈現——不接管版面、不輪詢聊天內容。少數覆蓋層刻意用固定定位的純 DOM——左下角連線晶片/卡片、自我更新橫幅、共用提示條：它們必須恰好在宿主 React 樹凍結時依然存活。 連線晶片/卡片與共用提示條的配色走宿主主題令牌——跟隨當前主題，不再是固定深色底。
+面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）web profile 的行動版體驗修復，以單一外掛交付。介面幾乎都透過宿主自身的槽位與狀態訊號呈現——不接管版面、不輪詢聊天內容。少數覆蓋層刻意用固定定位的純 DOM——左下角連線晶片/卡片、自我更新橫幅、共用提示條：它們必須恰好在宿主 React 樹凍結時依然存活。連線晶片/卡片與共用提示條的配色走宿主主題令牌——跟隨當前主題，不再是固定深色底。
 
 ## 你會得到
 

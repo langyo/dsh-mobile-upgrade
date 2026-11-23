@@ -2,7 +2,7 @@
 
 [English](../../README.md) | 简体中文 | [繁體中文](../zh-Hant/README.md) | [日本語](../ja/README.md) | [한국어](../ko/README.md) | [Español](../es/README.md) | [Français](../fr/README.md) | [Deutsch](../de/README.md) | [Русский](../ru/README.md)
 
-面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）web profile 的手机端体验修复，以单个插件交付。界面几乎都走宿主自身的槽位与状态信号——不接管布局、不轮询聊天内容。少数覆盖层刻意用固定定位的纯 DOM——左下角连接芯片/卡片、自更新横幅、共享提示条：它们必须恰好在宿主 React 树冻结时依然存活。 连接芯片/卡片与共享提示条的配色走宿主主题令牌——跟随当前主题，不再是固定深色底。
+面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）web profile 的手机端体验修复，以单个插件交付。界面几乎都走宿主自身的槽位与状态信号——不接管布局、不轮询聊天内容。少数覆盖层刻意用固定定位的纯 DOM——左下角连接芯片/卡片、自更新横幅、共享提示条：它们必须恰好在宿主 React 树冻结时依然存活。连接芯片/卡片与共享提示条的配色走宿主主题令牌——跟随当前主题，不再是固定深色底。
 
 ## 你会得到
 
